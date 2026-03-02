@@ -5,10 +5,10 @@ import {
   ManyToOne,
   JoinColumn,
 } from "typeorm";
-import { ParkingSpot } from "./parkingSpot.entity";
+import { ParkingSpot } from "../parkingSpots/parkingSpot.entity";
 
 @Entity("parking_spot_readings")
-export class ParkingSpotReading {
+export class ParkingSpotLog {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 
@@ -21,7 +21,8 @@ export class ParkingSpotReading {
   @Column({ type: "datetime" })
   recordedAt!: Date;
 
-  @ManyToOne(() => ParkingSpot, (spot) => spot.readings, { onDelete: "CASCADE" })
+  @ManyToOne(() => ParkingSpot, (spot) => spot.logs, { onDelete: "CASCADE" })
   @JoinColumn({ name: "parkingSpotId" })
   parkingSpot!: ParkingSpot;
 }
+

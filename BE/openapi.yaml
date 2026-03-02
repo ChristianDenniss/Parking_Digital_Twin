@@ -166,6 +166,42 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/parking-spot-logs:
+    get:
+      summary: List parking spot status logs
+      operationId: listParkingSpotLogs
+      parameters:
+        - name: parkingSpotId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of parking spot logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParkingSpotLog"
+
+  /api/parking-spot-logs/{id}:
+    get:
+      summary: Get a parking spot log by ID
+      operationId: getParkingSpotLogById
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Parking spot log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParkingSpotLog"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/historical:
     get:
       summary: List historical proxy data
@@ -724,6 +760,22 @@ components:
         status:
           type: string
           enum: [occupied, empty]
+
+    ParkingSpotLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        parkingSpotId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [occupied, empty]
+        recordedAt:
+          type: string
+          format: date-time
 
     HistoricalProxyData:
       type: object

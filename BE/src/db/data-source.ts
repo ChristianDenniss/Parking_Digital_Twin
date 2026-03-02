@@ -3,7 +3,7 @@ import { DataSource } from "typeorm";
 import path from "path";
 import { ParkingLot } from "../modules/parkingLots/parkingLot.entity";
 import { ParkingSpot } from "../modules/parkingSpots/parkingSpot.entity";
-import { ParkingSpotReading } from "../modules/parkingSpots/parkingSpotReading.entity";
+import { ParkingSpotLog } from "../modules/parkingSpotLogs/parkingSpotLog.entity";
 import { HistoricalProxyData } from "../modules/historical/historical.entity";
 import { Student } from "../modules/students/student.entity";
 import { Course } from "../modules/classes/course.entity";
@@ -20,7 +20,7 @@ export const AppDataSource = new DataSource({
   entities: [
     ParkingLot,
     ParkingSpot,
-    ParkingSpotReading,
+    ParkingSpotLog,
     HistoricalProxyData,
     User,
     Student,

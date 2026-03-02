@@ -1,9 +1,9 @@
 import { AppDataSource } from "../../db/data-source";
 import { ParkingSpot } from "./parkingSpot.entity";
-import { ParkingSpotReading } from "./parkingSpotReading.entity";
+import { ParkingSpotLog } from "../parkingSpotLogs/parkingSpotLog.entity";
 
 const spotRepo = () => AppDataSource.getRepository(ParkingSpot);
-const readingRepo = () => AppDataSource.getRepository(ParkingSpotReading);
+const logRepo = () => AppDataSource.getRepository(ParkingSpotLog);
 
 export async function findAll(parkingLotId: string | null = null): Promise<ParkingSpot[]> {
   const opts = parkingLotId
@@ -21,12 +21,12 @@ export async function updateStatus(id: string, status: "occupied" | "empty"): Pr
   if (!spot) return null;
   spot.currentStatus = status;
   await spotRepo().save(spot);
-  const reading = readingRepo().create({
+  const log = logRepo().create({
     parkingSpotId: spot.id,
     status,
     recordedAt: new Date(),
   });
-  await readingRepo().save(reading);
+  await logRepo().save(log);
   return spot;
 }
 

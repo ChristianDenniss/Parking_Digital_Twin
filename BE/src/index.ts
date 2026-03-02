@@ -5,6 +5,7 @@ import { notFound, errorHandler } from "./middleware";
 import { startSimulator } from "./modules/simulator";
 import parkingLotRoute from "./modules/parkingLots/parkingLot.route";
 import parkingSpotRoute from "./modules/parkingSpots/parkingSpot.route";
+import parkingSpotLogRoute from "./modules/parkingSpotLogs/parkingSpotLog.route";
 import historicalRoute from "./modules/historical/historical.route";
 import studentRoute from "./modules/students/student.route";
 import courseRoute from "./modules/classes/course.route";
@@ -21,6 +22,7 @@ async function main() {
 
   app.use("/api/parking-lots", parkingLotRoute);
   app.use("/api/parking-spots", parkingSpotRoute);
+  app.use("/api/parking-spot-logs", parkingSpotLogRoute);
   app.use("/api/historical", historicalRoute);
   app.use("/api/students", studentRoute);
   app.use("/api/classes", courseRoute);

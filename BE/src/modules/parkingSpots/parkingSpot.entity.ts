@@ -8,7 +8,7 @@ import {
   JoinColumn,
 } from "typeorm";
 import { ParkingLot } from "../parkingLots/parkingLot.entity";
-import { ParkingSpotReading } from "./parkingSpotReading.entity";
+import { ParkingSpotLog } from "../parkingSpotLogs/parkingSpotLog.entity";
 
 @Entity("parking_spots")
 export class ParkingSpot {
@@ -37,6 +37,7 @@ export class ParkingSpot {
   @JoinColumn({ name: "parkingLotId" })
   parkingLot!: ParkingLot;
 
-  @OneToMany(() => ParkingSpotReading, (reading) => reading.parkingSpot)
-  readings!: ParkingSpotReading[];
+  @OneToMany(() => ParkingSpotLog, (log) => log.parkingSpot)
+  logs!: ParkingSpotLog[];
 }
+
