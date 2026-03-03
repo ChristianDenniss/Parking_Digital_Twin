@@ -5,7 +5,8 @@ import { validate } from "../../utils/validate";
 
 export async function list(req: Request, res: Response) {
   const parkingLotId = (req.query.parkingLotId as string) || null;
-  const spots = await parkingSpotService.findAll(parkingLotId);
+  const section = (req.query.section as string) || null;
+  const spots = await parkingSpotService.findAll({ parkingLotId, section });
   res.json(spots);
 }
 

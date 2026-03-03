@@ -75,6 +75,11 @@ paths:
       operationId: listParkingLotSpots
       parameters:
         - $ref: "#/components/parameters/IdPath"
+        - name: section
+          in: query
+          description: Filter by section within the lot
+          schema:
+            type: string
       responses:
         "200":
           description: List of parking spots
@@ -98,6 +103,11 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: section
+          in: query
+          description: Filter by section within a lot (e.g. North, A, Visitor)
+          schema:
+            type: string
       responses:
         "200":
           description: List of parking spots
@@ -723,6 +733,9 @@ components:
           format: uuid
         label:
           type: string
+        section:
+          type: string
+          description: Section within the lot (e.g. North, A, Visitor)
         row:
           type: string
         index:
@@ -746,6 +759,9 @@ components:
         label:
           type: string
           minLength: 1
+        section:
+          type: string
+          description: Section within the lot
         row:
           type: string
         index:

@@ -3,6 +3,7 @@ import { z } from "zod";
 export const createParkingSpotSchema = z.object({
   parkingLotId: z.string().min(1, { message: "parkingLotId is required" }).trim(),
   label: z.string().min(1, { message: "Label is required" }).trim(),
+  section: z.string().trim().optional(),
   row: z.string().trim().optional(),
   index: z.coerce.number().int().nonnegative().optional(),
 }).strict();

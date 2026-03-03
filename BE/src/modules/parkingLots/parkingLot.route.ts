@@ -5,8 +5,25 @@ import { cacheMiddleware, invalidateCacheMiddleware } from "../../middleware/cac
 const router = Router();
 
 router.get("/", cacheMiddleware({ prefix: "parking-lots", ttlSeconds: 60 }), controller.list);
-router.get("/:id", controller.getById);
-router.get("/:id/spots", controller.getSpots);
+router.get(
+  "/:id",
+  cacheMiddleware({
+    prefix: "parking-lots",
+    ttlSeconds: 60,
+    key: (req) => `GET:/api/parking-lots/${req.params.id}`,
+  }),
+  controller.getById
+);
+// Cache the per-lot spot listing as well (parking spot-related)
+router.get(
+  "/:id/spots",
+  cacheMiddleware({
+    prefix: "parking-lot-spots",
+    ttlSeconds: 30,
+    key: (req) => `GET:/api/parking-lots/${req.params.id}/spots`,
+  }),
+  controller.getSpots
+);
 router.post("/", invalidateCacheMiddleware("parking-lots"), controller.create);
 
 export default router;

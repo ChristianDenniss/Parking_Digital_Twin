@@ -5,11 +5,23 @@ import { ParkingSpotLog } from "../parkingSpotLogs/parkingSpotLog.entity";
 const spotRepo = () => AppDataSource.getRepository(ParkingSpot);
 const logRepo = () => AppDataSource.getRepository(ParkingSpotLog);
 
-export async function findAll(parkingLotId: string | null = null): Promise<ParkingSpot[]> {
-  const opts = parkingLotId
-    ? { where: { parkingLotId }, order: { row: "ASC" as const, index: "ASC" as const } }
-    : { order: { parkingLotId: "ASC" as const, row: "ASC" as const, index: "ASC" as const } };
-  return spotRepo().find(opts);
+export async function findAll(filters: {
+  parkingLotId?: string | null;
+  section?: string | null;
+} = {}): Promise<ParkingSpot[]> {
+  const where: { parkingLotId?: string; section?: string } = {};
+  if (filters.parkingLotId) where.parkingLotId = filters.parkingLotId;
+  if (filters.section != null && filters.section !== "") where.section = filters.section;
+
+  return spotRepo().find({
+    where: Object.keys(where).length ? where : undefined,
+    order: {
+      parkingLotId: "ASC",
+      section: "ASC",
+      row: "ASC",
+      index: "ASC",
+    },
+  });
 }
 
 export async function findById(id: string): Promise<ParkingSpot | null> {
@@ -33,12 +45,14 @@ export async function updateStatus(id: string, status: "occupied" | "empty"): Pr
 export async function create(data: {
   parkingLotId: string;
   label: string;
+  section?: string;
   row?: string;
   index?: number;
 }): Promise<ParkingSpot> {
   const spot = spotRepo().create({
     parkingLotId: data.parkingLotId,
     label: data.label,
+    section: data.section ?? "",
     row: data.row ?? "",
     index: data.index ?? 0,
     currentStatus: "empty",
@@ -48,7 +62,7 @@ export async function create(data: {
 
 export async function update(
   id: string,
-  data: Partial<{ label: string; row: string; index: number }>
+  data: Partial<{ label: string; section: string; row: string; index: number }>
 ): Promise<ParkingSpot | null> {
   const spot = await spotRepo().findOne({ where: { id } });
   if (!spot) return null;

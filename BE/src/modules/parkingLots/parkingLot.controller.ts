@@ -15,7 +15,8 @@ export async function getById(req: Request, res: Response) {
 }
 
 export async function getSpots(req: Request, res: Response) {
-  const spots = await parkingLotService.findSpotsByParkingLotId(req.params.id);
+  const section = (req.query.section as string) || null;
+  const spots = await parkingLotService.findSpotsByParkingLotId(req.params.id, section);
   res.json(spots);
 }
 

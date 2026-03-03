@@ -22,6 +22,9 @@ export class ParkingSpot {
   label!: string;
 
   @Column({ default: "" })
+  section!: string;
+
+  @Column({ default: "" })
   row!: string;
 
   @Column("integer", { default: 0 })

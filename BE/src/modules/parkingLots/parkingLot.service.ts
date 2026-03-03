@@ -13,10 +13,15 @@ export async function findById(id: string): Promise<ParkingLot | null> {
   return repo().findOne({ where: { id } });
 }
 
-export async function findSpotsByParkingLotId(parkingLotId: string) {
+export async function findSpotsByParkingLotId(
+  parkingLotId: string,
+  section?: string | null
+) {
+  const where: { parkingLotId: string; section?: string } = { parkingLotId };
+  if (section != null && section !== "") where.section = section;
   return spotRepo().find({
-    where: { parkingLotId },
-    order: { row: "ASC", index: "ASC" },
+    where,
+    order: { section: "ASC", row: "ASC", index: "ASC" },
   });
 }
 

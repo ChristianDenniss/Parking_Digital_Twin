@@ -4,8 +4,19 @@ import { cacheMiddleware, invalidateCacheMiddleware } from "../../middleware/cac
 
 const router = Router();
 
+// Cache the list of spots (per query) for a short time
 router.get("/", cacheMiddleware({ prefix: "parking-spots", ttlSeconds: 30 }), controller.list);
-router.get("/:id", controller.getById);
+// Cache individual spot lookups
+router.get(
+  "/:id",
+  cacheMiddleware({
+    prefix: "parking-spots",
+    ttlSeconds: 30,
+    key: (req) => `GET:/api/parking-spots/${req.params.id}`,
+  }),
+  controller.getById
+);
+// Mutations invalidate spot-related cache
 router.patch("/:id/status", invalidateCacheMiddleware("parking-spots"), controller.updateStatus);
 router.post("/", invalidateCacheMiddleware("parking-spots"), controller.create);
 

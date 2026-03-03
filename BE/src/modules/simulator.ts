@@ -8,7 +8,7 @@ function pickRandom<T>(arr: T[]): T {
 }
 
 async function runTick() {
-  const spots = await parkingSpotService.findAll(null);
+  const spots = await parkingSpotService.findAll({});
   if (spots.length === 0) return;
   const occupancyTarget =
     process.env.SIM_OCCUPANCY != null ? Number(process.env.SIM_OCCUPANCY) : DEFAULT_OCCUPANCY_AVG;
