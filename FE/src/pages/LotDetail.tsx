@@ -57,7 +57,7 @@ export function LotDetail() {
   }
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto px-6 py-8 text-volley-occupied">
+      <div className="max-w-4xl mx-auto px-6 py-8 text-red-600">
         Error: {error}
       </div>
     );
@@ -75,23 +75,30 @@ export function LotDetail() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       <p className="mb-4">
-        <Link to="/" className="text-volley-accent hover:underline">
-          ← Lots
+        <Link to="/" className="text-sky-600 hover:underline">
+          ← Back to campus map
         </Link>
       </p>
-      <h1 className="page-header">{lot.name}</h1>
+      <h1 className="text-2xl font-bold text-slate-900">{lot.name}</h1>
       <div className="flex flex-wrap justify-center gap-4 mb-6">
-        <span className="meta-box">{lot.campus}</span>
-        <span className="meta-box">Capacity {lot.capacity}</span>
+        <span className="rounded border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600">{lot.campus}</span>
+        <span className="rounded border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600">Capacity {lot.capacity}</span>
       </div>
+
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold text-slate-800 mb-2">Lot map (closer view)</h2>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 min-h-[320px] flex items-center justify-center text-slate-500 text-sm">
+          Placeholder for manual lot map — add your digital map here.
+        </div>
+      </section>
 
       {sections.length > 0 && (
         <div className="mb-6">
-          <label className="block text-volley-muted text-sm mb-1">Section</label>
+          <label className="block text-slate-500 text-sm mb-1">Section</label>
           <select
             value={section}
             onChange={(e) => setSection(e.target.value)}
-            className="w-full max-w-xs px-3 py-2 rounded border border-volley-border bg-white text-volley-ink"
+            className="w-full max-w-xs px-3 py-2 rounded border border-slate-200 bg-white text-slate-800"
           >
             <option value="">All</option>
             {sections.map((s) => (
@@ -103,7 +110,7 @@ export function LotDetail() {
         </div>
       )}
 
-      <p className="text-volley-muted text-sm mb-4">
+      <p className="text-slate-500 text-sm mb-4">
         Click a spot to toggle occupied/empty (simulator also updates every 5s).
       </p>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-2">
@@ -111,7 +118,11 @@ export function LotDetail() {
           <button
             key={spot.id}
             type="button"
-            className={`spot-tile ${spot.currentStatus}`}
+            className={`rounded border px-2 py-1.5 text-sm font-medium ${
+              spot.currentStatus === "occupied"
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+            }`}
             onClick={() => toggleStatus(spot)}
             title={`${spot.label} — ${spot.currentStatus}`}
           >
@@ -120,7 +131,7 @@ export function LotDetail() {
         ))}
       </div>
       {spots.length === 0 && (
-        <p className="text-volley-muted mt-4">No spots in this lot.</p>
+        <p className="text-slate-500 mt-4">No spots in this lot.</p>
       )}
     </div>
   );

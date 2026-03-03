@@ -97,3 +97,20 @@ export async function getTile(req: Request, res: Response) {
     });
   }
 }
+
+/**
+ * GET /api/earth-engine/sections
+ * Returns parking section polygons as GeoJSON for hover (tooltip) and click (navigate to lot).
+ */
+export async function getSections(req: Request, res: Response) {
+  try {
+    const geojson = await earthEngineService.getSectionsGeoJSON();
+    res.set("Cache-Control", "public, max-age=300"); // 5 min
+    return res.json(geojson);
+  } catch (err) {
+    console.error("Earth Engine sections error:", err);
+    return res.status(502).json({
+      error: err instanceof Error ? err.message : "Failed to load sections GeoJSON",
+    });
+  }
+}

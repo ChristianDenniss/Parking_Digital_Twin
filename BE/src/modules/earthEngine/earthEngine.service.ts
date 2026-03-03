@@ -10,6 +10,7 @@ const ee = require("@google/earthengine") as {
   };
   FeatureCollection: (id: string) => {
     style: (params: { color?: string; width?: number; fillColor?: string }) => unknown;
+    getInfo: (callback: (info: FeatureCollectionInfo | null, err?: Error) => void) => void;
   };
   data: {
     authenticateViaPrivateKey: (
@@ -29,6 +30,35 @@ const ee = require("@google/earthengine") as {
 /** Asset IDs for the UNBSJ parking composite (image + section polygons). */
 const UNBSJ_IMAGE_ASSET = "projects/cs4555/assets/unbsjIMAGE";
 const UNBSJ_SECTIONS_ASSET = "projects/cs4555/assets/unbsj_parking_sections";
+
+/** Lot names in same order as GEE unbsj_parking_sections features (for tooltip/click when GEE has no name prop). */
+const SECTION_LOT_NAMES = [
+  "GeneralParking1",
+  "GeneralParking2",
+  "GeneralParking3",
+  "GeneralParking4",
+  "StaffParking1",
+  "StaffParking2",
+  "StaffParking3",
+  "TBD",
+  "TBD2",
+  "TBD3",
+  "ResidentParking1",
+  "ResidentParking2",
+  "TimedParking1",
+  "TimedParking2",
+] as const;
+
+/** Result of FeatureCollection.getInfo – features with geometry and properties. */
+interface FeatureCollectionInfo {
+  features?: Array<{
+    type?: string;
+    geometry?: { type: string; coordinates: unknown };
+    properties?: Record<string, unknown>;
+    [key: string]: unknown;
+  }>;
+  properties?: Record<string, unknown>;
+}
 
 let initialized = false;
 
@@ -178,6 +208,62 @@ export function getMapIdForUnbsj(): Promise<MapIdResult> {
         combined.getMap({}, (result: MapIdResult & { tile_fetcher?: { url_format?: string } }) =>
           resolve(normalizeMapIdResult(result))
         );
+      })
+      .catch(reject);
+  });
+}
+
+/** GeoJSON FeatureCollection for parking sections (hover/click on map). */
+export interface SectionsGeoJSON {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    geometry: { type: string; coordinates: unknown };
+    properties: Record<string, unknown> & { name: string };
+  }>;
+}
+
+const SECTIONS_CACHE_TTL_MS = 30 * 60 * 1000; // 30 min
+let sectionsCache: { data: SectionsGeoJSON; expiresAt: number } | null = null;
+
+/**
+ * Get parking section polygons as GeoJSON for client-side hover/click.
+ * Uses GEE FeatureCollection.getInfo; section name from feature properties (e.g. name, section, or first string prop).
+ * Cached 30 min.
+ */
+export function getSectionsGeoJSON(): Promise<SectionsGeoJSON> {
+  if (sectionsCache && sectionsCache.expiresAt > Date.now()) return Promise.resolve(sectionsCache.data);
+  return new Promise((resolve, reject) => {
+    ensureInitialized()
+      .then(() => {
+        const fc = ee.FeatureCollection(UNBSJ_SECTIONS_ASSET);
+        fc.getInfo((info: FeatureCollectionInfo | null, err?: Error) => {
+          if (err) return reject(err);
+          if (!info || !info.features || !Array.isArray(info.features)) {
+            return reject(new Error("Earth Engine sections: no features returned"));
+          }
+          const features = info.features
+            .filter((f) => f.geometry)
+            .map((f, index) => {
+              const props = f.properties || {};
+              const fromProps =
+                (props.name as string) ??
+                (props.section as string) ??
+                (Object.values(props).find((v) => typeof v === "string") as string);
+              const name =
+                fromProps && fromProps.trim() !== ""
+                  ? fromProps.trim()
+                  : SECTION_LOT_NAMES[index] ?? `Section ${index + 1}`;
+              return {
+                type: "Feature" as const,
+                geometry: f.geometry!,
+                properties: { ...props, name },
+              };
+            });
+          const data: SectionsGeoJSON = { type: "FeatureCollection", features };
+          sectionsCache = { data, expiresAt: Date.now() + SECTIONS_CACHE_TTL_MS };
+          resolve(data);
+        });
       })
       .catch(reject);
   });

@@ -1,7 +1,18 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { ParkingLot, ParkingSpot } from "../api/types";
 import { ParkingMap } from "../components/ParkingMap";
+
+/** Sections GeoJSON from /api/earth-engine/sections */
+interface SectionsGeoJSON {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    geometry: { type: string; coordinates: unknown };
+    properties: Record<string, unknown> & { name: string };
+  }>;
+}
 
 /** Known total parking spaces on campus (UNB Saint John). */
 const CAMPUS_TOTAL_SPACES = 1_170;
@@ -14,10 +25,12 @@ interface Stats {
 }
 
 export function Home() {
+  const navigate = useNavigate();
   const [lots, setLots] = useState<ParkingLot[]>([]);
   const [spots, setSpots] = useState<ParkingSpot[]>([]);
   const [tileUrl, setTileUrl] = useState<string | null>(null);
   const [tileUrlError, setTileUrlError] = useState<string | null>(null);
+  const [sectionsGeoJSON, setSectionsGeoJSON] = useState<SectionsGeoJSON | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +52,13 @@ export function Home() {
       .get<{ tileUrl: string }>("/api/earth-engine/tiles")
       .then((data) => setTileUrl(data.tileUrl))
       .catch((e) => setTileUrlError(e.message));
+  }, []);
+
+  useEffect(() => {
+    api
+      .get<SectionsGeoJSON>("/api/earth-engine/sections")
+      .then(setSectionsGeoJSON)
+      .catch(() => setSectionsGeoJSON(null)); // optional: map works without sections layer
   }, []);
 
   if (loading) {
@@ -130,6 +150,9 @@ export function Home() {
         <h2 className="text-lg font-semibold mb-3">Campus map (Earth Engine)</h2>
         <ParkingMap
           earthEngineTileUrl={tileUrl}
+          sectionsGeoJSON={sectionsGeoJSON}
+          lots={lots}
+          onSectionClick={(lotId) => navigate(`/lot/${lotId}`)}
           className="h-[480px]"
         >
           {statsOverlay}
@@ -146,24 +169,21 @@ export function Home() {
             No lots found. Did you run <code>npm run seed</code> in the backend?
           </p>
         ) : (
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+          <div className="grid gap-2 grid-cols-1 md:grid-cols-2">
             {byLot.map(({ lot, total, occupied, empty, occupancyPercent }) => (
               <div
                 key={lot.id}
-                className="rounded-lg border border-slate-200 bg-white p-4 flex flex-col gap-2"
+                className="rounded border border-slate-200 bg-white py-2 px-3 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-0.5"
               >
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold">{lot.name}</p>
-                    <p className="text-xs text-slate-500">{lot.campus}</p>
-                  </div>
-                  <p className="text-sm font-medium text-sky-600">{occupancyPercent}%</p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="font-semibold text-sm truncate">{lot.name}</p>
+                  <span className="text-xs text-slate-500 shrink-0">{lot.campus}</span>
                 </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                  <span className="text-slate-700">Total: {total}</span>
+                <div className="flex flex-wrap items-center gap-x-3 text-xs">
+                  <span className="text-slate-600">Total: {total}</span>
                   <span className="text-emerald-600">Free: {empty}</span>
                   <span className="text-red-600">Taken: {occupied}</span>
-                  <span className="text-sky-600">{occupancyPercent}%</span>
+                  <span className="font-medium text-sky-600">{occupancyPercent}%</span>
                 </div>
               </div>
             ))}

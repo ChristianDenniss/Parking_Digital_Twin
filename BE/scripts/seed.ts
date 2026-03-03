@@ -6,19 +6,30 @@ import { ParkingSpot } from "../src/modules/parkingSpots/parkingSpot.entity";
 /** Campus total parking spaces (UNB Saint John). */
 const CAMPUS_TOTAL_SPACES = 1_170;
 
+const REPLACE = process.argv.includes("--replace");
+
 async function seed() {
   await AppDataSource.initialize();
   const lotRepo = AppDataSource.getRepository(ParkingLot);
   const spotRepo = AppDataSource.getRepository(ParkingSpot);
 
-  const spotCount = await spotRepo.count();
-  if (spotCount === CAMPUS_TOTAL_SPACES) {
-    console.log(`DB already has full seed (${CAMPUS_TOTAL_SPACES} spots). Skipping.`);
-    await AppDataSource.destroy();
-    process.exit(0);
+  if (!REPLACE) {
+    const spotCount = await spotRepo.count();
+    if (spotCount === CAMPUS_TOTAL_SPACES) {
+      console.log(`DB already has full seed (${CAMPUS_TOTAL_SPACES} spots). Skipping. Use \`npm run seed:replace\` to overwrite.`);
+      await AppDataSource.destroy();
+      process.exit(0);
+    }
   }
-  if (spotCount > 0 || (await lotRepo.count()) > 0) {
-    console.log(`Clearing existing data (${spotCount} spots) to re-seed to ${CAMPUS_TOTAL_SPACES}...`);
+
+  const spotCount = await spotRepo.count();
+  const lotCount = await lotRepo.count();
+  if (REPLACE || spotCount > 0 || lotCount > 0) {
+    if (REPLACE) {
+      console.log("Replace mode: clearing all parking data...");
+    } else {
+      console.log(`Clearing existing data (${spotCount} spots) to re-seed to ${CAMPUS_TOTAL_SPACES}...`);
+    }
     await spotRepo.createQueryBuilder().delete().execute();
     await lotRepo.createQueryBuilder().delete().execute();
   }
