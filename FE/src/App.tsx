@@ -4,6 +4,7 @@ import { Lots } from "./pages/Lots";
 import { LotDetail } from "./pages/LotDetail";
 import { Auth } from "./pages/Auth";
 import { Logs } from "./pages/Logs";
+import unbSymbol from "./images/UNBSymbol.png";
 
 const tokenKey = "parking_twin_token";
 
@@ -12,9 +13,8 @@ function Nav() {
   const token = typeof window !== "undefined" ? localStorage.getItem(tokenKey) : null;
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    isActive
-      ? "text-white font-semibold"
-      : "text-white/90 hover:text-white";
+    (isActive ? "text-white font-semibold active" : "text-white/90 hover:text-white") +
+    " group flex items-center gap-1.5 py-4 -my-2";
 
   const handlePrimaryClick = () => {
     if (token) {
@@ -25,20 +25,23 @@ function Nav() {
   };
 
   return (
-    <nav className="flex items-center justify-between py-3 px-6 border-b border-unb-red-dark bg-unb-red">
-      <div className="flex items-center gap-8">
+    <nav className="flex items-center justify-between py-3 px-[clamp(1.5rem,6vw,5rem)] border-b border-unb-red-dark bg-unb-red">
+      <div className="flex items-center gap-12">
         <NavLink to="/" className="text-lg font-semibold text-white">
           UNB Parking
         </NavLink>
         <div className="hidden sm:flex items-center gap-6 text-sm">
           <NavLink to="/" end className={linkClass}>
             Home
+            <img src={unbSymbol} alt="" className="h-4 w-4 shrink-0 invisible group-hover:visible group-[.active]:visible transition-[visibility]" aria-hidden />
           </NavLink>
           <NavLink to="/lots" className={linkClass}>
             Lots
+            <img src={unbSymbol} alt="" className="h-4 w-4 shrink-0 invisible group-hover:visible group-[.active]:visible transition-[visibility]" aria-hidden />
           </NavLink>
           <NavLink to="/logs" className={linkClass}>
             Logs
+            <img src={unbSymbol} alt="" className="h-4 w-4 shrink-0 invisible group-hover:visible group-[.active]:visible transition-[visibility]" aria-hidden />
           </NavLink>
         </div>
       </div>
