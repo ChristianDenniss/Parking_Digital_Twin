@@ -10,10 +10,7 @@
     @apply min-h-screen;
   }
   a {
-    @apply text-sky-600 no-underline;
-  }
-  a:hover {
-    @apply underline;
+    @apply text-unb-red no-underline;
   }
 }
 

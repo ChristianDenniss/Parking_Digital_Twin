@@ -66,14 +66,30 @@ async function seed() {
   const BATCH = 200;
   const rows = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
   let totalSpots = 0;
-  for (const lot of lots) {
+  for (let lotIndex = 0; lotIndex < lots.length; lotIndex++) {
+    const lot = lots[lotIndex];
     const capacity = lot.capacity;
     const perRow = Math.ceil(capacity / rows.length);
+    // At least one lot in dark red (≥95% full), one in dark green (<40% full)
+    let occupiedCount: number | null = null;
+    if (lotIndex === 0) {
+      occupiedCount = Math.ceil(capacity * 0.96); // ~96% → dark red
+    } else if (lotIndex === 1) {
+      occupiedCount = Math.floor(capacity * 0.35); // ~35% → dark green
+    }
     const spots: ParkingSpot[] = [];
     for (let n = 0; n < capacity; n++) {
       const rowIndex = n % perRow;
       const rowLetter = rows[Math.floor(n / perRow)];
       const prefix = lot.name.slice(0, 2).toUpperCase().replace(/\s/g, "");
+      const status: "occupied" | "empty" =
+        occupiedCount !== null
+          ? n < occupiedCount
+            ? "occupied"
+            : "empty"
+          : Math.random() < 0.5
+            ? "occupied"
+            : "empty";
       spots.push(
         spotRepo.create({
           parkingLotId: lot.id,
@@ -81,7 +97,7 @@ async function seed() {
           section: rowLetter,
           row: rowLetter,
           index: rowIndex + 1,
-          currentStatus: Math.random() < 0.5 ? "occupied" : "empty",
+          currentStatus: status,
         })
       );
     }

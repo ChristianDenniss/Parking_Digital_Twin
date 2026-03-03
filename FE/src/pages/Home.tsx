@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { ParkingLot, ParkingSpot } from "../api/types";
 import { ParkingMap } from "../components/ParkingMap";
+import unbLogoAlternate from "../images/UNBlogoAlternate.png";
 
 /** Sections GeoJSON from /api/earth-engine/sections */
 interface SectionsGeoJSON {
@@ -24,6 +25,18 @@ interface Stats {
   occupancyPercent: number;
 }
 
+type LotSortOption = "most-free" | "highest-free-pct" | "biggest" | "smallest";
+
+/** Tailwind text color class for % full (occupancy) on lot cards. */
+function getOccupancyColorClass(pct: number): string {
+  if (pct >= 95) return "text-red-900 font-semibold";   // Essentially full
+  if (pct >= 85) return "text-red-600 font-medium";     // Very high congestion
+  if (pct >= 75) return "text-orange-600 font-medium";  // Filling fast
+  if (pct >= 60) return "text-yellow-600 font-medium";  // Moderate
+  if (pct >= 40) return "text-green-400 font-medium";   // Plenty available
+  return "text-green-800 font-medium";                  // Very open (< 40%)
+}
+
 export function Home() {
   const navigate = useNavigate();
   const [lots, setLots] = useState<ParkingLot[]>([]);
@@ -33,6 +46,7 @@ export function Home() {
   const [sectionsGeoJSON, setSectionsGeoJSON] = useState<SectionsGeoJSON | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lotSort, setLotSort] = useState<LotSortOption>("biggest");
 
   useEffect(() => {
     Promise.all([
@@ -87,6 +101,41 @@ export function Home() {
     };
   }, [sectionsGeoJSON, lots]);
 
+  const byLot = useMemo(() => {
+    return lots.map((lot) => {
+      const lotSpots = spots.filter((s) => s.parkingLotId === lot.id);
+      const occupied = lotSpots.filter((s) => s.currentStatus === "occupied").length;
+      const total = lotSpots.length;
+      const empty = total - occupied;
+      const occupancyPercent = total ? Math.round((occupied / total) * 100) : 0;
+      const freePercent = total ? (empty / total) * 100 : 0;
+      return {
+        lot,
+        total,
+        occupied,
+        empty,
+        occupancyPercent,
+        freePercent,
+      };
+    });
+  }, [lots, spots]);
+
+  const sortedByLot = useMemo(() => {
+    const sorted = [...byLot];
+    switch (lotSort) {
+      case "most-free":
+        return sorted.sort((a, b) => b.empty - a.empty);
+      case "highest-free-pct":
+        return sorted.sort((a, b) => b.freePercent - a.freePercent);
+      case "biggest":
+        return sorted.sort((a, b) => b.total - a.total);
+      case "smallest":
+        return sorted.sort((a, b) => a.total - b.total);
+      default:
+        return sorted;
+    }
+  }, [byLot, lotSort]);
+
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto px-6 py-10 space-y-6">
@@ -118,21 +167,6 @@ export function Home() {
     occupancyPercent: Math.round((occupiedCount / CAMPUS_TOTAL_SPACES) * 100),
   };
 
-  const byLot = lots.map((lot) => {
-    const lotSpots = spots.filter((s) => s.parkingLotId === lot.id);
-    const occupied = lotSpots.filter((s) => s.currentStatus === "occupied").length;
-    const total = lotSpots.length;
-    const empty = total - occupied;
-    const occupancyPercent = total ? Math.round((occupied / total) * 100) : 0;
-    return {
-      lot,
-      total,
-      occupied,
-      empty,
-      occupancyPercent,
-    };
-  });
-
   const statsOverlay = (
     <div className="rounded-lg border border-slate-200 bg-white/95 backdrop-blur p-4 shadow-lg">
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
@@ -152,7 +186,7 @@ export function Home() {
           <p className="text-xs text-slate-500">Taken</p>
         </div>
         <div>
-          <p className="text-lg font-bold text-sky-600">{stats.occupancyPercent}%</p>
+          <p className="text-lg font-bold text-unb-red">{stats.occupancyPercent}%</p>
           <p className="text-xs text-slate-500">Occupancy</p>
         </div>
       </div>
@@ -162,18 +196,28 @@ export function Home() {
     </div>
   );
 
+  const half = Math.ceil(sortedByLot.length / 2);
+  const leftColumn = sortedByLot.slice(0, half);
+  const rightColumn = sortedByLot.slice(half);
+  const lotCardClass =
+    "w-full text-left rounded border border-slate-200 bg-white py-2 px-3 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-0.5 transition-all duration-200 hover:scale-[1.02] hover:bg-slate-50 hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-unb-red focus-visible:ring-offset-1 cursor-pointer";
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-10 space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold">UNB Parking Digital Twin</h1>
+      <header className="space-y-3">
+        <div className="flex items-center gap-3">
+          <img src={unbLogoAlternate} alt="University of New Brunswick" className="h-28 w-auto" />
+          <h1 className="text-3xl font-bold text-unb-black">
+            Parking Digital Twin
+          </h1>
+        </div>
         <p className="text-slate-600">
-          Live view of parking occupancy on campus (simulated sensors). Campus total:{" "}
-          <strong>{CAMPUS_TOTAL_SPACES.toLocaleString()} parking spaces</strong>.
+          Live view of parking occupancy on campus (simulated sensors).
         </p>
       </header>
 
       <section>
-        <h2 className="text-lg font-semibold mb-3">Campus map (Earth Engine)</h2>
+        <h2 className="text-lg font-semibold mb-3">Campus map (Google Earth Engine API)</h2>
         <ParkingMap
           earthEngineTileUrl={tileUrl}
           sectionsGeoJSON={sectionsWithLotNames}
@@ -186,35 +230,75 @@ export function Home() {
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold mb-3">By lot</h2>
-        <p className="text-sm text-slate-500 mb-3">
-          Total and occupancy % per lot (subsection of campus).
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div>
+            <h2 className="text-lg font-semibold">By individual lot</h2>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Total and occupancy % per lot (subsection of campus).
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            Sort by
+            <select
+              value={lotSort}
+              onChange={(e) => setLotSort(e.target.value as LotSortOption)}
+              className="rounded border border-slate-200 bg-white px-2 py-1.5 text-slate-800 text-sm"
+            >
+              <option value="most-free">Most free spots</option>
+              <option value="highest-free-pct">Highest free %</option>
+              <option value="biggest">Biggest</option>
+              <option value="smallest">Smallest</option>
+            </select>
+          </label>
+        </div>
         {byLot.length === 0 ? (
           <p className="text-slate-500 text-sm">
             No lots found. Did you run <code>npm run seed</code> in the backend?
           </p>
         ) : (
           <div className="grid gap-2 grid-cols-1 md:grid-cols-2">
-            {byLot.map(({ lot, total, occupied, empty, occupancyPercent }) => (
-              <button
-                type="button"
-                key={lot.id}
-                onClick={() => navigate(`/lot/${lot.id}`)}
-                className="w-full text-left rounded border border-slate-200 bg-white py-2 px-3 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-0.5 transition-all duration-200 hover:scale-[1.02] hover:bg-slate-50 hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 cursor-pointer"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <p className="font-semibold text-sm truncate">{lot.name}</p>
-                  <span className="text-xs text-slate-500 shrink-0">{lot.campus}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-3 text-xs">
-                  <span className="text-slate-600">Total: {total}</span>
-                  <span className="text-emerald-600">Free: {empty}</span>
-                  <span className="text-red-600">Taken: {occupied}</span>
-                  <span className="font-medium text-sky-600">{occupancyPercent}%</span>
-                </div>
-              </button>
-            ))}
+            <div className="flex flex-col gap-2">
+              {leftColumn.map(({ lot, total, occupied, empty, occupancyPercent }) => (
+                <button
+                  type="button"
+                  key={lot.id}
+                  onClick={() => navigate(`/lot/${lot.id}`)}
+                  className={lotCardClass}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <p className="font-semibold text-sm truncate">{lot.name}</p>
+                    <span className="text-xs text-slate-500 shrink-0">{lot.campus}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 text-xs">
+                    <span className="text-slate-600">Total: {total}</span>
+                    <span className="text-emerald-600">Free: {empty}</span>
+                    <span className="text-red-600">Taken: {occupied}</span>
+                    <span className={getOccupancyColorClass(occupancyPercent)}>{occupancyPercent}%</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2">
+              {rightColumn.map(({ lot, total, occupied, empty, occupancyPercent }) => (
+                <button
+                  type="button"
+                  key={lot.id}
+                  onClick={() => navigate(`/lot/${lot.id}`)}
+                  className={lotCardClass}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <p className="font-semibold text-sm truncate">{lot.name}</p>
+                    <span className="text-xs text-slate-500 shrink-0">{lot.campus}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 text-xs">
+                    <span className="text-slate-600">Total: {total}</span>
+                    <span className="text-emerald-600">Free: {empty}</span>
+                    <span className="text-red-600">Taken: {occupied}</span>
+                    <span className={getOccupancyColorClass(occupancyPercent)}>{occupancyPercent}%</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </section>

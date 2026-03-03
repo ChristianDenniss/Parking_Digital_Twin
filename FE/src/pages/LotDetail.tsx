@@ -75,7 +75,7 @@ export function LotDetail() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       <p className="mb-4">
-        <Link to="/" className="text-sky-600 hover:underline">
+        <Link to="/" className="text-unb-red">
           ← Back to campus map
         </Link>
       </p>
