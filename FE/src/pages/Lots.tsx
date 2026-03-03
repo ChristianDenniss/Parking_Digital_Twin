@@ -28,7 +28,7 @@ export function Lots() {
   }
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto px-6 py-8 text-volley-occupied">
+      <div className="max-w-4xl mx-auto px-6 py-8 text-red-600">
         Error: {error}
       </div>
     );
@@ -42,16 +42,16 @@ export function Lots() {
           <Link
             key={lot.id}
             to={`/lot/${lot.id}`}
-            className="card-volley block p-4 text-white hover:text-volley-accent"
+            className="block p-4 rounded-lg border border-slate-200 bg-white text-slate-800 shadow-sm hover:bg-slate-50 hover:border-slate-300 hover:shadow transition-colors"
           >
             <span className="font-bold">{lot.name}</span>
-            <span className="opacity-90"> — {lot.campus} · capacity {lot.capacity}</span>
+            <span className="text-slate-600"> — {lot.campus} · capacity {lot.capacity}</span>
           </Link>
         ))}
       </div>
       {lots.length === 0 && (
-        <p className="text-volley-muted mt-4">
-          No lots. Run <code className="bg-gray-200 px-1 rounded">npm run seed</code> in BE.
+        <p className="text-slate-600 mt-4">
+          No lots. Run <code className="bg-slate-200 px-1 rounded text-slate-800">npm run seed</code> in BE.
         </p>
       )}
     </div>

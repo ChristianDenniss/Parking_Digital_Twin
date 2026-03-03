@@ -79,10 +79,10 @@ export function LotDetail() {
           ← Back to campus map
         </Link>
       </p>
-      <h1 className="text-2xl font-bold text-slate-900">{lot.name}</h1>
-      <div className="flex flex-wrap justify-center gap-4 mb-6">
-        <span className="rounded border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600">{lot.campus}</span>
-        <span className="rounded border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600">Capacity {lot.capacity}</span>
+      <h1 className="text-2xl font-bold text-slate-900 mb-2">{lot.name}</h1>
+      <div className="flex flex-wrap justify-start gap-4 my-2">
+        <span className="rounded border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600">Location: {lot.campus}</span>
+        <span className="rounded border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600">Parking Lot Capacity: {lot.capacity}</span>
       </div>
 
       <section className="mb-8">

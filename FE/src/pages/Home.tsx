@@ -197,9 +197,11 @@ export function Home() {
         ) : (
           <div className="grid gap-2 grid-cols-1 md:grid-cols-2">
             {byLot.map(({ lot, total, occupied, empty, occupancyPercent }) => (
-              <div
+              <button
+                type="button"
                 key={lot.id}
-                className="rounded border border-slate-200 bg-white py-2 px-3 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-0.5"
+                onClick={() => navigate(`/lot/${lot.id}`)}
+                className="w-full text-left rounded border border-slate-200 bg-white py-2 px-3 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-0.5 transition-all duration-200 hover:scale-[1.02] hover:bg-slate-50 hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 cursor-pointer"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <p className="font-semibold text-sm truncate">{lot.name}</p>
@@ -211,7 +213,7 @@ export function Home() {
                   <span className="text-red-600">Taken: {occupied}</span>
                   <span className="font-medium text-sky-600">{occupancyPercent}%</span>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
