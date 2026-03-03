@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { ParkingLot, ParkingSpot } from "../api/types";
@@ -60,6 +60,32 @@ export function Home() {
       .then(setSectionsGeoJSON)
       .catch(() => setSectionsGeoJSON(null)); // optional: map works without sections layer
   }, []);
+
+  const sectionsWithLotNames = useMemo(() => {
+    if (!sectionsGeoJSON || !Array.isArray(sectionsGeoJSON.features) || sectionsGeoJSON.features.length === 0) {
+      return sectionsGeoJSON;
+    }
+    const lotOrder = [
+      "GeneralParking1", "GeneralParking2", "GeneralParking3", "GeneralParking4",
+      "StaffParking1", "StaffParking2", "StaffParking3",
+      "TBD", "TBD2", "TBD3",
+      "ResidentParking1", "ResidentParking2",
+      "TimedParking1", "TimedParking2",
+    ];
+    const sortedLots = [...lots].sort(
+      (a, b) => lotOrder.indexOf(a.name) - lotOrder.indexOf(b.name)
+    );
+    return {
+      ...sectionsGeoJSON,
+      features: sectionsGeoJSON.features.map((f, i) => ({
+        ...f,
+        properties: {
+          ...f.properties,
+          name: sortedLots[i]?.name ?? f.properties?.name ?? `Section ${i + 1}`,
+        },
+      })),
+    };
+  }, [sectionsGeoJSON, lots]);
 
   if (loading) {
     return (
@@ -150,7 +176,7 @@ export function Home() {
         <h2 className="text-lg font-semibold mb-3">Campus map (Earth Engine)</h2>
         <ParkingMap
           earthEngineTileUrl={tileUrl}
-          sectionsGeoJSON={sectionsGeoJSON}
+          sectionsGeoJSON={sectionsWithLotNames}
           lots={lots}
           onSectionClick={(lotId) => navigate(`/lot/${lotId}`)}
           className="h-[480px]"

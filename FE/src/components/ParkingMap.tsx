@@ -87,7 +87,12 @@ export function ParkingMap({
           maxZoom={22}
         />
         {earthEngineTileUrl && (
-          <TileLayer url={earthEngineTileUrl} zIndex={1} />
+          <TileLayer
+            url={earthEngineTileUrl}
+            zIndex={1}
+            maxNativeZoom={18}
+            maxZoom={22}
+          />
         )}
         {sectionsGeoJSON && (
           <GeoJSON

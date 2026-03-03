@@ -11,6 +11,7 @@ import * as earthEngineService from "./earthEngine.service";
 export async function getTileUrl(req: Request, res: Response) {
   const asset = (req.query.asset as string)?.trim() || "unbsj";
   const tileUrl = `/api/earth-engine/tiles/{z}/{x}/{y}?asset=${encodeURIComponent(asset)}`;
+  console.log("[earth-engine] GET /tiles → 200", { asset, tileUrl });
   return res.json({ tileUrl });
 }
 
@@ -105,10 +106,12 @@ export async function getTile(req: Request, res: Response) {
 export async function getSections(req: Request, res: Response) {
   try {
     const geojson = await earthEngineService.getSectionsGeoJSON();
+    const featureCount = geojson.features?.length ?? 0;
+    console.log("[earth-engine] GET /sections → 200", { featureCount });
     res.set("Cache-Control", "public, max-age=300"); // 5 min
     return res.json(geojson);
   } catch (err) {
-    console.error("Earth Engine sections error:", err);
+    console.error("[earth-engine] GET /sections → 502", err);
     return res.status(502).json({
       error: err instanceof Error ? err.message : "Failed to load sections GeoJSON",
     });

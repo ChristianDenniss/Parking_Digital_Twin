@@ -1,6 +1,6 @@
 import * as parkingSpotService from "./parkingSpots/parkingSpot.service";
 
-const INTERVAL_MS = 5000;
+const INTERVAL_MS = 30_000;
 const DEFAULT_OCCUPANCY_AVG = 0.6;
 
 function pickRandom<T>(arr: T[]): T {

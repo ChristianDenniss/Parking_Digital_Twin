@@ -2,7 +2,7 @@ import "reflect-metadata";
 import express from "express";
 import { AppDataSource } from "./db/data-source";
 import { initializeEarthEngine } from "./config/earthEngine";
-import { notFound, errorHandler, requestLogger } from "./middleware";
+import { notFound, errorHandler, requestLogger, loggingMiddleware } from "./middleware";
 import { cacheHealthCheck } from "./middleware/cache";
 import { startSimulator } from "./modules/simulator";
 import parkingLotRoute from "./modules/parkingLots/parkingLot.route";
@@ -25,6 +25,7 @@ async function main() {
   const app = express();
   app.use(express.json());
   app.use(requestLogger);
+  app.use(loggingMiddleware);
 
   app.use("/api/parking-lots", parkingLotRoute);
   app.use("/api/parking-spots", parkingSpotRoute);

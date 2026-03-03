@@ -18,6 +18,31 @@ export function requestLogger(req: Request, _res: Response, next: NextFunction) 
   next();
 }
 
+/** Logs request (query, params) and response status + duration. Use globally so earth-engine and all routes are covered. */
+export function loggingMiddleware(req: Request, res: Response, next: NextFunction) {
+  const start = Date.now();
+  const hasQuery = req.query && Object.keys(req.query).length > 0;
+  const hasParams = req.params && Object.keys(req.params).length > 0;
+  if (hasQuery || hasParams) {
+    console.log("[logging] request:", {
+      method: req.method,
+      path: req.originalUrl,
+      ...(hasParams && { params: req.params }),
+      ...(hasQuery && { query: req.query }),
+    });
+  }
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    console.log("[logging] response:", {
+      method: req.method,
+      path: req.originalUrl,
+      status: res.statusCode,
+      durationMs: duration,
+    });
+  });
+  next();
+}
+
 export function notFound(req: Request, res: Response, _next: NextFunction) {
   res.status(404).json({ error: "Not found", path: req.originalUrl });
 }
