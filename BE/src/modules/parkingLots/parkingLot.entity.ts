@@ -21,6 +21,9 @@ export class ParkingLot {
   @Column("integer")
   capacity!: number;
 
+  @Column({ type: "text", nullable: true })
+  imageUrl!: string | null;
+
   @CreateDateColumn({ type: "datetime" })
   createdAt!: Date;
 

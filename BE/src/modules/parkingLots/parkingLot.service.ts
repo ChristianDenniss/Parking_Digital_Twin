@@ -25,16 +25,20 @@ export async function findSpotsByParkingLotId(
   });
 }
 
-export async function create(data: { name: string; capacity: number; campus?: string }): Promise<ParkingLot> {
+export async function create(data: { name: string; capacity: number; campus?: string; imageUrl?: string | null }): Promise<ParkingLot> {
   const lot = repo().create({
     name: data.name,
     capacity: data.capacity,
     campus: data.campus ?? "UNB Saint John",
+    imageUrl: data.imageUrl ?? null,
   });
   return repo().save(lot);
 }
 
-export async function update(id: string, data: Partial<{ name: string; capacity: number; campus: string }>): Promise<ParkingLot | null> {
+export async function update(
+  id: string,
+  data: Partial<{ name: string; capacity: number; campus: string; imageUrl: string | null }>
+): Promise<ParkingLot | null> {
   const lot = await repo().findOne({ where: { id } });
   if (!lot) return null;
   Object.assign(lot, data);

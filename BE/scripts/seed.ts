@@ -6,6 +6,17 @@ import { ParkingSpot } from "../src/modules/parkingSpots/parkingSpot.entity";
 /** Campus total parking spaces (UNB Saint John). */
 const CAMPUS_TOTAL_SPACES = 1_170;
 
+/** Image URLs to randomly assign to lots for frontend display testing. */
+const LOT_IMAGE_URLS = [
+  "https://i.postimg.cc/pX9kY0b9/Parking-Lot-Place-Holder3.jpg",
+  "https://i.postimg.cc/5NHpqPdF/Parking-Lot-Place-Holder2.jpg",
+  "https://i.postimg.cc/MKctbs2K/Parking-Lot-Place-Holder1.jpg",
+] as const;
+
+function randomLotImageUrl(): string {
+  return LOT_IMAGE_URLS[Math.floor(Math.random() * LOT_IMAGE_URLS.length)];
+}
+
 const REPLACE = process.argv.includes("--replace");
 
 async function seed() {
@@ -58,6 +69,7 @@ async function seed() {
       name: cfg.name,
       campus: "UNB Saint John",
       capacity: cfg.capacity,
+      imageUrl: randomLotImageUrl(),
     });
     await lotRepo.save(lot);
     lots.push(lot);

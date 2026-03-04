@@ -3,6 +3,7 @@ export interface ParkingLot {
   name: string;
   campus: string;
   capacity: number;
+  imageUrl: string | null;
   createdAt: string;
 }
 

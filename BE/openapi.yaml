@@ -939,6 +939,11 @@ components:
         capacity:
           type: integer
           minimum: 0
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: Public URL of an image representing the parking lot
         createdAt:
           type: string
           format: date-time
@@ -957,6 +962,11 @@ components:
           minimum: 0
         campus:
           type: string
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: Public URL of an image representing the parking lot
 
     ParkingSpot:
       type: object
