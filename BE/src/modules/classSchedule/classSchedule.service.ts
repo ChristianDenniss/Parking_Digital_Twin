@@ -3,14 +3,22 @@ import { ClassSchedule } from "./classSchedule.entity";
 
 const repo = () => AppDataSource.getRepository(ClassSchedule);
 
-export async function findAll(filters: { studentId?: string | null; classId?: string | null } = {}): Promise<ClassSchedule[]> {
+export async function findAll(
+  filters: { studentId?: string | null; classId?: string | null } = {},
+  relations: string[] = []
+): Promise<ClassSchedule[]> {
   const where: { studentId?: string; classId?: string } = {};
   if (filters.studentId) where.studentId = filters.studentId;
   if (filters.classId) where.classId = filters.classId;
   return repo().find({
     where: Object.keys(where).length ? where : undefined,
+    relations: relations.length ? (relations as ("course" | "student")[]) : undefined,
     order: { createdAt: "DESC" },
   });
+}
+
+export async function countByClassId(classId: string): Promise<number> {
+  return repo().count({ where: { classId } });
 }
 
 export async function findById(id: string): Promise<ClassSchedule | null> {

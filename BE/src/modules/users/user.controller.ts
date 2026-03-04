@@ -84,8 +84,34 @@ export async function mySchedule(req: Request, res: Response) {
   if (!user) return res.status(401).json({ error: "Not authenticated" });
   const student = await studentService.findByUserId(user.id);
   if (!student) return res.json([]);
-  const schedules = await classScheduleService.findAll({ studentId: student.id });
-  res.json(schedules);
+  const schedules = await classScheduleService.findAll({ studentId: student.id }, ["course"]);
+  const withDetails = await Promise.all(
+    schedules.map(async (s) => {
+      const studentsEnrolled = await classScheduleService.countByClassId(s.classId);
+      return {
+        id: s.id,
+        studentId: s.studentId,
+        classId: s.classId,
+        term: s.term,
+        section: s.section,
+        createdAt: s.createdAt,
+        course: s.course
+          ? {
+              id: s.course.id,
+              classCode: s.course.classCode,
+              name: s.course.name,
+              startTime: s.course.startTime,
+              endTime: s.course.endTime,
+              term: s.course.term,
+              building: s.course.building,
+              room: s.course.room,
+            }
+          : null,
+        studentsEnrolled,
+      };
+    })
+  );
+  res.json(withDetails);
 }
 
 export async function list(req: Request, res: Response) {

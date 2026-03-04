@@ -7,6 +7,30 @@ export interface ParkingLot {
   createdAt: string;
 }
 
+/** Lot with distance and occupancy when requested with ?buildingId= (for "where to park" optimization). */
+export interface ParkingLotWithDistance extends ParkingLot {
+  distanceMeters?: number;
+  freeSpots?: number;
+  occupancyPercent?: number;
+}
+
+export interface Building {
+  id: string;
+  name: string;
+  code: string | null;
+  floors: number | null;
+  createdAt?: string;
+}
+
+/** Relationship table: lot ↔ building with distance in meters. */
+export interface LotBuildingDistance {
+  parkingLotId: string;
+  buildingId: string;
+  distanceMeters: number;
+  parkingLot?: ParkingLot;
+  building?: Building;
+}
+
 export interface ParkingSpot {
   id: string;
   parkingLotId: string;
@@ -44,4 +68,36 @@ export interface MeResponse {
     name: string;
     year: number | null;
   } | null;
+}
+
+export interface Course {
+  id: string;
+  classCode: string;
+  startTime: string;
+  endTime: string;
+  name: string | null;
+  term: string | null;
+  building?: string | null;
+  room?: string | null;
+  createdAt?: string;
+}
+
+export interface ScheduleEntry {
+  id: string;
+  studentId: string;
+  classId: string;
+  term: string | null;
+  section: string | null;
+  createdAt: string;
+  course: {
+    id: string;
+    classCode: string;
+    name: string | null;
+    startTime: string;
+    endTime: string;
+    term: string | null;
+    building: string | null;
+    room: string | null;
+  } | null;
+  studentsEnrolled: number;
 }

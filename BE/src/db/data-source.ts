@@ -9,6 +9,8 @@ import { Student } from "../modules/students/student.entity";
 import { Course } from "../modules/classes/course.entity";
 import { ClassSchedule } from "../modules/classSchedule/classSchedule.entity";
 import { User } from "../modules/users/user.entity";
+import { Building } from "../modules/buildings/building.entity";
+import { LotBuildingDistance } from "../modules/buildings/lotBuildingDistance.entity";
 
 const dbPath = path.join(__dirname, "..", "..", "data", "database.sqlite");
 
@@ -26,6 +28,8 @@ export const AppDataSource = new DataSource({
     Student,
     Course,
     ClassSchedule,
+    Building,
+    LotBuildingDistance,
   ],
   migrations: [],
   subscribers: [],

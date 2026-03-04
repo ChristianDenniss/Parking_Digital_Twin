@@ -4,6 +4,19 @@ import { createParkingLotSchema } from "./parkingLot.schema";
 import { validate } from "../../utils/validate";
 
 export async function list(req: Request, res: Response) {
+  const buildingId = req.query.buildingId as string | undefined;
+  if (buildingId?.trim()) {
+    const recommendations = await parkingLotService.findRecommendationsByBuilding(buildingId.trim());
+    res.json(
+      recommendations.map((r) => ({
+        ...r.lot,
+        distanceMeters: r.distanceMeters,
+        freeSpots: r.freeSpots,
+        occupancyPercent: r.occupancyPercent,
+      }))
+    );
+    return;
+  }
   const lots = await parkingLotService.findAll();
   res.json(lots);
 }

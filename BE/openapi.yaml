@@ -27,6 +27,8 @@ tags:
     description: Class/course catalog.
   - name: Class schedule
     description: Class schedule entries (enrollments).
+  - name: Buildings
+    description: Campus buildings and lot–building walking distances.
   - name: Users
     description: API users and auth-related endpoints.
 
@@ -201,17 +203,26 @@ paths:
     get:
       tags:
         - Parking lots
-      summary: List all parking lots
+      summary: List all parking lots (or lots with distance/occupancy for a building)
       operationId: listParkingLots
+      parameters:
+        - name: buildingId
+          in: query
+          description: When provided, returns lots with distance and occupancy for this building (sorted by distance then availability)
+          schema:
+            type: string
+            format: uuid
       responses:
         "200":
-          description: List of parking lots
+          description: List of parking lots. With buildingId, each item includes distanceMeters, freeSpots, occupancyPercent.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/ParkingLot"
+                  oneOf:
+                    - $ref: "#/components/schemas/ParkingLot"
+                    - $ref: "#/components/schemas/ParkingLotWithDistance"
     post:
       tags:
         - Parking lots

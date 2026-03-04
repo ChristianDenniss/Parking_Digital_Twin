@@ -27,6 +27,12 @@ export class Course {
   @Column({ type: "text", nullable: true })
   term!: string | null;
 
+  @Column({ type: "text", nullable: true })
+  building!: string | null;
+
+  @Column({ type: "text", nullable: true })
+  room!: string | null;
+
   @CreateDateColumn({ type: "datetime" })
   createdAt!: Date;
 

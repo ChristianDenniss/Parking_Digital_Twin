@@ -6,7 +6,7 @@ import { validate } from "../../utils/validate";
 export async function list(req: Request, res: Response) {
   const studentId = (req.query.studentId as string) || null;
   const classId = (req.query.classId as string) || null;
-  const rows = await classScheduleService.findAll({ studentId, classId });
+  const rows = await classScheduleService.findAll({ studentId, classId }, []);
   res.json(rows);
 }
 

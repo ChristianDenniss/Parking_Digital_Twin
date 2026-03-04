@@ -13,6 +13,7 @@ import historicalRoute from "./modules/historical/historical.route";
 import studentRoute from "./modules/students/student.route";
 import courseRoute from "./modules/classes/course.route";
 import classScheduleRoute from "./modules/classSchedule/classSchedule.route";
+import buildingRoute from "./modules/buildings/building.route";
 import authRoute from "./modules/users/auth.route";
 import userRoute from "./modules/users/user.route";
 import earthEngineRoute from "./modules/earthEngine/earthEngine.route";
@@ -35,6 +36,7 @@ async function main() {
   app.use("/api/students", studentRoute);
   app.use("/api/classes", courseRoute);
   app.use("/api/class-schedule", classScheduleRoute);
+  app.use("/api/buildings", buildingRoute);
   app.use("/api/auth", authRoute);
   app.use("/api/users", userRoute);
   app.use("/api/earth-engine", earthEngineRoute);

@@ -5,6 +5,7 @@ import { LotDetail } from "./pages/LotDetail";
 import { Auth } from "./pages/Auth";
 import { Logs } from "./pages/Logs";
 import { Api } from "./pages/Api";
+import { Schedule } from "./pages/Schedule";
 import unbSymbol from "./images/UNBSymbol.png";
 
 const tokenKey = "parking_twin_token";
@@ -72,8 +73,7 @@ export default function App() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/logs" element={<Logs />} />
         <Route path="/api" element={<Api />} />
-        {/* Placeholder for future schedule UI */}
-        <Route path="/schedule" element={<div className="max-w-4xl mx-auto px-6 py-10 text-sm text-slate-700">Class schedule editor coming soon.</div>} />
+        <Route path="/schedule" element={<Schedule />} />
       </Routes>
     </div>
   );

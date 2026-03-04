@@ -2,6 +2,8 @@ import "reflect-metadata";
 import { AppDataSource } from "../src/db/data-source";
 import { ParkingLot } from "../src/modules/parkingLots/parkingLot.entity";
 import { ParkingSpot } from "../src/modules/parkingSpots/parkingSpot.entity";
+import { Building } from "../src/modules/buildings/building.entity";
+import { LotBuildingDistance } from "../src/modules/buildings/lotBuildingDistance.entity";
 
 /** Campus total parking spaces (UNB Saint John). */
 const CAMPUS_TOTAL_SPACES = 1_170;
@@ -117,6 +119,49 @@ async function seed() {
       await spotRepo.save(spots.slice(i, i + BATCH));
     }
     totalSpots += spots.length;
+  }
+
+  // Buildings and lot–building distances (for "where to park" optimization)
+  const buildingRepo = AppDataSource.getRepository(Building);
+  const distanceRepo = AppDataSource.getRepository(LotBuildingDistance);
+  let buildings: Building[] = [];
+  if ((await buildingRepo.count()) === 0) {
+    const buildingConfigs = [
+      { name: "Ganong Hall", code: "Ganong Hall" },
+      { name: "K.C. Irving Hall", code: "K.C. Irving Hall" },
+      { name: "Hans W. Klohn Commons (library)", code: "Hans W. Klohn Commons (library)" },
+      { name: "Thomas J. Condon Student Centre", code: "Thomas J. Condon Student Centre" },
+      { name: "G. Forbes Elliot Athletics Centre", code: "G. Forbes Elliot Athletics Centre" },
+      { name: "Sir Douglas Hazen Hall", code: "Sir Douglas Hazen Hall" },
+      { name: "Philip W. Oland Hall", code: "Philip W. Oland Hall" },
+      { name: "Sir James Dunn Residence", code: "Sir James Dunn Residence" },
+      { name: "Colin B. Mackay Residence", code: "Colin B. Mackay Residence" },
+      { name: "Barry & Flora Beckett Residence", code: "Barry & Flora Beckett Residence" },
+      { name: "Canada Games Stadium", code: "Canada Games Stadium" },
+      { name: "Dalhousie Medicine New Brunswick building", code: "Dalhousie Medicine New Brunswick building" },
+    ];
+    for (const cfg of buildingConfigs) {
+      const b = buildingRepo.create({ name: cfg.name, code: cfg.code });
+      await buildingRepo.save(b);
+      buildings.push(b);
+    }
+    console.log(`Seeded ${buildings.length} buildings.`);
+  } else {
+    buildings = await buildingRepo.find({ order: { name: "ASC" } });
+  }
+  if ((await distanceRepo.count()) === 0 && buildings.length > 0) {
+    for (const lot of lots) {
+      for (const building of buildings) {
+        const distanceMeters = 50 + Math.floor(Math.random() * 450);
+        const d = distanceRepo.create({
+          parkingLotId: lot.id,
+          buildingId: building.id,
+          distanceMeters,
+        });
+        await distanceRepo.save(d);
+      }
+    }
+    console.log(`Seeded lot–building distances (${lots.length} lots × ${buildings.length} buildings).`);
   }
 
   console.log(`Seeded ${lots.length} parking lots and ${totalSpots} parking spots (campus total: ${CAMPUS_TOTAL_SPACES}).`);
