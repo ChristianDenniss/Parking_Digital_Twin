@@ -16,7 +16,8 @@ npm run build
 npm start
 ```
 
-Runs on port 3000. For dev with auto-reload use `npm run dev`.
+Runs on port 3000. **Courses** are not in the seed. To load scraped course data once:  
+`npm run seed-courses -- path/to/courses.json` (add `--replace` to clear and re-import). For dev with auto-reload use `npm run dev`.
 
 A simulator updates ~5% of parking spot statuses every 5 seconds so the lot doesn’t sit static. Override with `SIM_OCCUPANCY` (0–1) if you want a different average occupancy.
 

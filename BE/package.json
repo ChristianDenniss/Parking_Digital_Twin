@@ -8,7 +8,8 @@
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn src/index.ts",
     "seed": "ts-node scripts/seed.ts",
-    "seed-replace": "ts-node scripts/seed.ts --replace"
+    "seed-replace": "ts-node scripts/seed.ts --replace",
+    "seed-courses": "ts-node scripts/seed-courses.ts"
   },
   "keywords": [
     "parking",

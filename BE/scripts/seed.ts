@@ -39,10 +39,11 @@ async function seed() {
   const lotCount = await lotRepo.count();
   if (REPLACE || spotCount > 0 || lotCount > 0) {
     if (REPLACE) {
-      console.log("Replace mode: clearing all parking data...");
+      console.log("Replace mode: clearing parking lots and spots only (courses, students, users, buildings are left intact).");
     } else {
       console.log(`Clearing existing data (${spotCount} spots) to re-seed to ${CAMPUS_TOTAL_SPACES}...`);
     }
+    // Only parking data; do not delete courses, class_schedule, students, users, or buildings.
     await spotRepo.createQueryBuilder().delete().execute();
     await lotRepo.createQueryBuilder().delete().execute();
   }

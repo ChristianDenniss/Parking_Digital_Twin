@@ -19,7 +19,7 @@ export function Api() {
         </p>
       </div>
       <div className="rounded-lg border border-slate-200 bg-white overflow-hidden [&_.swagger-ui]:font-sans">
-        <SwaggerUI url={getSpecUrl()} />
+        <SwaggerUI url={getSpecUrl()} docExpansion="none" defaultModelsExpandDepth={0} />
       </div>
     </div>
   );
