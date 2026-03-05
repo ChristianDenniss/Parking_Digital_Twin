@@ -11,7 +11,7 @@ Digital twin for campus parking at UNB Saint John. Right now we’re on the MVP:
 ```bash
 cd BE
 npm install
-npm run seed    # one lot, 24 spots (SQLite)
+npm run seed    # 14 lots, 1,170 spots (SQLite), plus buildings and lot–building distances
 npm run build
 npm start
 ```
@@ -51,7 +51,7 @@ Runs at http://localhost:5173. Start the backend first so the proxy can reach `h
 - **Thin controllers** – they validate, call the service, send the response. Logic lives in **services**.
 - **Routes** – just wire method + path to a controller; no logic in the route files.
 
-Under `BE/src/` you have `db/` (TypeORM data source), `middleware/`, `utils/`, and `modules/`. Each module (parkingLots, parkingSpots, parkingSpotLogs, historical, users, students, classes, classSchedule) has its own entity, schema, service, controller, and route. The simulator is a separate module with no HTTP routes.
+Under `BE/src/` you have `db/` (TypeORM data source), `middleware/`, `utils/`, and `modules/`. Each module (parkingLots, parkingSpots, parkingSpotLogs, historical, users, students, classes, classSchedule, buildings, earthEngine) has its own entity, schema, service, controller, and route. The simulator is a separate module with no HTTP routes.
 
 ---
 

@@ -640,6 +640,217 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/buildings/distances/lot-building:
+    get:
+      tags:
+        - Buildings
+      summary: List lot–building distances (or get one by lot and building)
+      operationId: listLotBuildingDistances
+      parameters:
+        - name: parkingLotId
+          in: query
+          description: Filter by parking lot. If both parkingLotId and buildingId are set, returns the single distance for that pair.
+          schema:
+            type: string
+            format: uuid
+        - name: buildingId
+          in: query
+          description: Filter by building. If both parkingLotId and buildingId are set, returns the single distance for that pair.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of lot–building distances (or single object when both query params provided). May include parkingLot and building relations.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/LotBuildingDistance"
+                  - type: array
+                    items:
+                      $ref: "#/components/schemas/LotBuildingDistance"
+        "404":
+          description: Single pair requested but not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Buildings
+      summary: Create a lot–building distance
+      operationId: createLotBuildingDistance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLotBuildingDistance"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LotBuildingDistance"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Distance for this lot and building already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Buildings
+      summary: Update a lot–building distance (by lot and building)
+      operationId: updateLotBuildingDistance
+      parameters:
+        - name: parkingLotId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: buildingId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLotBuildingDistance"
+      responses:
+        "200":
+          description: Updated distance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LotBuildingDistance"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags:
+        - Buildings
+      summary: Remove a lot–building distance
+      operationId: deleteLotBuildingDistance
+      parameters:
+        - name: parkingLotId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: buildingId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: No content
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/buildings/{id}:
+    get:
+      tags:
+        - Buildings
+      summary: Get a building by ID
+      operationId: getBuildingById
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Building
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Building"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags:
+        - Buildings
+      summary: Update a building
+      operationId: updateBuilding
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBuilding"
+      responses:
+        "200":
+          description: Updated building
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Building"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags:
+        - Buildings
+      summary: Delete a building
+      operationId: deleteBuilding
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "204":
+          description: No content
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/buildings:
+    get:
+      tags:
+        - Buildings
+      summary: List all buildings
+      operationId: listBuildings
+      responses:
+        "200":
+          description: List of campus buildings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Building"
+    post:
+      tags:
+        - Buildings
+      summary: Create a building
+      operationId: createBuilding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBuilding"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Building"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
   /api/auth/register:
     post:
       tags:
@@ -979,6 +1190,24 @@ components:
           nullable: true
           description: Public URL of an image representing the parking lot
 
+    ParkingLotWithDistance:
+      description: Parking lot with distance and occupancy when requested by building (e.g. GET /api/parking-lots?buildingId=...)
+      allOf:
+        - $ref: "#/components/schemas/ParkingLot"
+        - type: object
+          properties:
+            distanceMeters:
+              type: number
+              description: Walking distance from the building to this lot (meters)
+            freeSpots:
+              type: integer
+              description: Number of empty spots
+            occupancyPercent:
+              type: number
+              minimum: 0
+              maximum: 100
+              description: Occupancy percentage
+
     ParkingSpot:
       type: object
       properties:
@@ -1221,3 +1450,102 @@ components:
         section:
           type: string
           nullable: true
+
+    Building:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+          nullable: true
+          description: Optional code to match course.building (e.g. Ganong Hall)
+        floors:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Number of floors
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateBuilding:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          nullable: true
+        floors:
+          type: integer
+          minimum: 0
+          nullable: true
+
+    UpdateBuilding:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          nullable: true
+        floors:
+          type: integer
+          minimum: 0
+          nullable: true
+
+    LotBuildingDistance:
+      type: object
+      description: Walking distance (meters) between a parking lot and a building
+      properties:
+        parkingLotId:
+          type: string
+          format: uuid
+        buildingId:
+          type: string
+          format: uuid
+        distanceMeters:
+          type: number
+          minimum: 0
+        parkingLot:
+          oneOf:
+            - $ref: "#/components/schemas/ParkingLot"
+            - type: "null"
+          description: Present when relation is loaded (e.g. list with filter)
+        building:
+          oneOf:
+            - $ref: "#/components/schemas/Building"
+            - type: "null"
+          description: Present when relation is loaded
+
+    CreateLotBuildingDistance:
+      type: object
+      required:
+        - parkingLotId
+        - buildingId
+        - distanceMeters
+      properties:
+        parkingLotId:
+          type: string
+          format: uuid
+        buildingId:
+          type: string
+          format: uuid
+        distanceMeters:
+          type: number
+          minimum: 0
+
+    UpdateLotBuildingDistance:
+      type: object
+      properties:
+        distanceMeters:
+          type: number
+          minimum: 0
