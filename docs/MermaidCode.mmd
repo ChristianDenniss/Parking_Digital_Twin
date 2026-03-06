@@ -1,0 +1,103 @@
+%% Parking Digital Twin - Data Model (Mermaid ER diagram)
+%% Paste this into Mermaid Live Editor or any Mermaid-supported doc (Notion, Confluence, etc.)
+
+erDiagram
+  parking_lots {
+    uuid id PK
+    string name
+    string campus
+    int capacity
+    string imageUrl "nullable"
+    datetime createdAt
+  }
+
+  parking_spots {
+    uuid id PK
+    uuid parkingLotId FK
+    string label
+    string section
+    string row
+    int index
+    string currentStatus "occupied|empty"
+    datetime updatedAt
+  }
+
+  parking_spot_readings {
+    uuid id PK
+    uuid parkingSpotId FK
+    string status "occupied|empty"
+    datetime recordedAt
+  }
+
+  users {
+    uuid id PK
+    string email "unique"
+    string passwordHash
+    string name "nullable"
+    datetime createdAt
+  }
+
+  students {
+    uuid id PK
+    uuid userId FK "nullable"
+    string studentId
+    string email
+    string name
+    int year "nullable"
+    datetime createdAt
+  }
+
+  classes {
+    uuid id PK
+    string classCode
+    string startTime
+    string endTime
+    string name "nullable"
+    string term "nullable"
+    string building "nullable"
+    string room "nullable"
+    string sectionCode "nullable"
+    int enrolled "nullable"
+    int capacity "nullable"
+    datetime createdAt
+  }
+
+  class_schedule {
+    uuid id PK
+    uuid studentId FK
+    uuid classId FK
+    string term "nullable"
+    string section "nullable"
+    datetime createdAt
+  }
+
+  buildings {
+    uuid id PK
+    string name
+    string code "nullable"
+    int floors "nullable"
+    datetime createdAt
+  }
+
+  lot_building_distances {
+    uuid parkingLotId PK,FK
+    uuid buildingId PK,FK
+    real distanceMeters
+  }
+
+  historical_proxy_data {
+    uuid id PK
+    string sourceName
+    datetime recordedAt
+    real occupancyPct
+    json snapshot "nullable"
+    json metadata "nullable"
+  }
+
+  parking_lots ||--o{ parking_spots : "has spots"
+  parking_spots ||--o{ parking_spot_readings : "has logs"
+  users ||--o| students : "linked account"
+  students ||--o{ class_schedule : "enrolled in"
+  classes ||--o{ class_schedule : "scheduled"
+  parking_lots ||--o{ lot_building_distances : "distance to"
+  buildings ||--o{ lot_building_distances : "distance from"
