@@ -1,0 +1,50 @@
+Parking Lot section info
+
+
+Name: Timed Parking 1
+Spots: 17, 6 being disabled
+
+Name: Timed Parking 2
+Spots: 27, 10 being disabled
+
+Name: Staff Parking 1
+Spots: 145, X being disabled
+
+Name: Staff Parking 2 
+Spots: 6, 2 being disabled
+
+Name: Staff Parking 3 
+Spots: 17, 4 being disabled
+
+Name: Staff Parking 4
+Spots: 10, 0 being disabled
+
+Name: PHD Parking 1
+Spots: 17, 2 being disabled
+
+Name: TBD
+Spots: 44, 2 being disabled
+
+Name: Resident Parking 1
+Spots: 20, 0 being disabled
+
+Name: Resident Parking 2
+Spots: 21, 1 being disabled
+
+Name: Resident Parking 3
+Spots: 22, 0 being disabled
+
+Name: General Parking 1
+Spots: 119, X being disabled
+
+Name: General Parking 2
+Spots: X, X being disabled
+
+Name: General Parking 3
+Spots: X, X being disabled
+
+Name: General Parking 4
+Spots: X, X being disabled
+
+Name: General Parking 5
+Spots: 24, 0 being disabled

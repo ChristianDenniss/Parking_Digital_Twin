@@ -15,9 +15,6 @@ interface SectionsGeoJSON {
   }>;
 }
 
-/** Known total parking spaces on campus (UNB Saint John). */
-const CAMPUS_TOTAL_SPACES = 1_170;
-
 interface Stats {
   totalSpots: number;
   occupied: number;
@@ -79,25 +76,41 @@ export function Home() {
     if (!sectionsGeoJSON || !Array.isArray(sectionsGeoJSON.features) || sectionsGeoJSON.features.length === 0) {
       return sectionsGeoJSON;
     }
+    // Prefer backend / GEE-provided name; only fall back to lot ordering if name is missing.
     const lotOrder = [
-      "GeneralParking1", "GeneralParking2", "GeneralParking3", "GeneralParking5",
-      "StaffParking1", "StaffParking2", "StaffParking3", "StaffParking4",
-      "PHDParking", "GeneralParking4",
-      "ResidentParking1", "ResidentParking2",
-      "TimedParking1", "TimedParking2",
+      "StaffParking1",
+      "GeneralParking1",
+      "GeneralParking2",
+      "GeneralParking3",
+      "TimedParking1",
+      "GeneralParking4",
+      "TimedParking2",
+      "StaffParking2",
+      "ResidentParking1",
+      "ResidentParking2",
+      "StaffParking3",
+      "TBD",
+      "PHDParking1",
+      "GeneralParking5",
+      "StaffParking4",
+      "ResidentParking3",
     ];
     const sortedLots = [...lots].sort(
       (a, b) => lotOrder.indexOf(a.name) - lotOrder.indexOf(b.name)
     );
     return {
       ...sectionsGeoJSON,
-      features: sectionsGeoJSON.features.map((f, i) => ({
-        ...f,
-        properties: {
-          ...f.properties,
-          name: sortedLots[i]?.name ?? f.properties?.name ?? `Section ${i + 1}`,
-        },
-      })),
+      features: sectionsGeoJSON.features.map((f, i) => {
+        const backendName = (f.properties?.name as string | undefined)?.trim();
+        const fallbackName = sortedLots[i]?.name ?? `Section ${i + 1}`;
+        return {
+          ...f,
+          properties: {
+            ...f.properties,
+            name: backendName && backendName.length > 0 ? backendName : fallbackName,
+          },
+        };
+      }),
     };
   }, [sectionsGeoJSON, lots]);
 
@@ -163,8 +176,8 @@ export function Home() {
     totalSpots,
     occupied: occupiedCount,
     empty: totalSpots - occupiedCount,
-    // Campus-wide %: use 1,170 as denominator so "whole campus" view is correct
-    occupancyPercent: Math.round((occupiedCount / CAMPUS_TOTAL_SPACES) * 100),
+    // Campus-wide %: based on current total spots in DB.
+    occupancyPercent: totalSpots ? Math.round((occupiedCount / totalSpots) * 100) : 0,
   };
 
   const statsOverlay = (
@@ -174,7 +187,7 @@ export function Home() {
       </p>
       <div className="grid grid-cols-4 gap-3 text-center">
         <div>
-          <p className="text-lg font-bold">{CAMPUS_TOTAL_SPACES.toLocaleString()}</p>
+          <p className="text-lg font-bold">{stats.totalSpots.toLocaleString()}</p>
           <p className="text-xs text-slate-500">Total</p>
         </div>
         <div>

@@ -5,10 +5,7 @@ import { ParkingSpot } from "../src/modules/parkingSpots/parkingSpot.entity";
 import { Building } from "../src/modules/buildings/building.entity";
 import { LotBuildingDistance } from "../src/modules/buildings/lotBuildingDistance.entity";
 
-/** Campus total parking spaces (UNB Saint John). */
-const CAMPUS_TOTAL_SPACES = 1_170;
-
-/** Image URLs to randomly assign to lots for frontend display testing. */
+/** Image URLs to randomly assign to lots if image assign fails frontend display testing. */
 const LOT_IMAGE_URLS = [
   "https://i.postimg.cc/pX9kY0b9/Parking-Lot-Place-Holder3.jpg",
   "https://i.postimg.cc/5NHpqPdF/Parking-Lot-Place-Holder2.jpg",
@@ -26,44 +23,37 @@ async function seed() {
   const lotRepo = AppDataSource.getRepository(ParkingLot);
   const spotRepo = AppDataSource.getRepository(ParkingSpot);
 
-  if (!REPLACE) {
-    const spotCount = await spotRepo.count();
-    if (spotCount === CAMPUS_TOTAL_SPACES) {
-      console.log(`DB already has full seed (${CAMPUS_TOTAL_SPACES} spots). Skipping. Use \`npm run seed:replace\` to overwrite.`);
-      await AppDataSource.destroy();
-      process.exit(0);
-    }
-  }
-
   const spotCount = await spotRepo.count();
   const lotCount = await lotRepo.count();
   if (REPLACE || spotCount > 0 || lotCount > 0) {
     if (REPLACE) {
       console.log("Replace mode: clearing parking lots and spots only (courses, students, users, buildings are left intact).");
     } else {
-      console.log(`Clearing existing data (${spotCount} spots) to re-seed to ${CAMPUS_TOTAL_SPACES}...`);
+      console.log(`Clearing existing data (${spotCount} spots) to re-seed to match current lotsConfig capacities...`);
     }
     // Only parking data; do not delete courses, class_schedule, students, users, or buildings.
     await spotRepo.createQueryBuilder().delete().execute();
     await lotRepo.createQueryBuilder().delete().execute();
   }
 
-  // 14 lots (names match GEE features); capacities sum to CAMPUS_TOTAL_SPACES
+  // 16 lots (names match GEE features); capacities define campus total spaces
   const lotsConfig = [
-    { name: "GeneralParking1", capacity: 84 },
-    { name: "GeneralParking2", capacity: 84 },
-    { name: "GeneralParking3", capacity: 84 },
-    { name: "GeneralParking5", capacity: 84 },
-    { name: "StaffParking1", capacity: 84 },
-    { name: "StaffParking2", capacity: 84 },
-    { name: "StaffParking3", capacity: 84 },
-    { name: "StaffParking4", capacity: 84 },
-    { name: "PHDParking", capacity: 83 },
-    { name: "GeneralParking4", capacity: 83 },
-    { name: "ResidentParking1", capacity: 83 },
-    { name: "ResidentParking2", capacity: 83 },
-    { name: "TimedParking1", capacity: 83 },
-    { name: "TimedParking2", capacity: 83 },
+    { name: "StaffParking1", capacity: 145 },
+    { name: "GeneralParking1", capacity: 119 },
+    { name: "GeneralParking2", capacity: 200 }, // X (estimated)
+    { name: "GeneralParking3", capacity: 200 }, // X (estimated)
+    { name: "TimedParking1", capacity: 17 },
+    { name: "GeneralParking4", capacity: 200 }, // X (estimated)
+    { name: "TimedParking2", capacity: 27 },
+    { name: "StaffParking2", capacity: 6 },
+    { name: "ResidentParking1", capacity: 20 },
+    { name: "ResidentParking2", capacity: 21 },
+    { name: "StaffParking3", capacity: 17 },
+    { name: "TBD", capacity: 44 },
+    { name: "PHDParking1", capacity: 17 },
+    { name: "GeneralParking5", capacity: 24 },
+    { name: "StaffParking4", capacity: 10 },
+    { name: "ResidentParking3", capacity: 22 },
   ] as const;
 
   const lots: ParkingLot[] = [];
@@ -165,7 +155,7 @@ async function seed() {
     console.log(`Seeded lot–building distances (${lots.length} lots × ${buildings.length} buildings).`);
   }
 
-  console.log(`Seeded ${lots.length} parking lots and ${totalSpots} parking spots (campus total: ${CAMPUS_TOTAL_SPACES}).`);
+  console.log(`Seeded ${lots.length} parking lots and ${totalSpots} parking spots.`);
   await AppDataSource.destroy();
   process.exit(0);
 }

@@ -33,20 +33,22 @@ const UNBSJ_SECTIONS_ASSET = "projects/cs4555/assets/unbsj_parking_sectionsVersi
 
 /** Lot names in same order as GEE unbsj_parking_sections features (for tooltip/click when GEE has no name prop). */
 const SECTION_LOT_NAMES = [
+  "StaffParking1",
   "GeneralParking1",
   "GeneralParking2",
   "GeneralParking3",
-  "GeneralParking5",
-  "StaffParking1",
-  "StaffParking2",
-  "StaffParking3",
-  "StaffParking4",
-  "PHDParking",
+  "TimedParking1",
   "GeneralParking4",
+  "TimedParking2",
+  "StaffParking2",
   "ResidentParking1",
   "ResidentParking2",
-  "TimedParking1",
-  "TimedParking2",
+  "StaffParking3",
+  "TBD",
+  "PHDParking1",
+  "GeneralParking5",
+  "StaffParking4",
+  "ResidentParking3",
 ] as const;
 
 /** Result of FeatureCollection.getInfo – features with geometry and properties. */
@@ -250,10 +252,42 @@ export function getSectionsGeoJSON(): Promise<SectionsGeoJSON> {
                 (props.name as string) ??
                 (props.section as string) ??
                 (Object.values(props).find((v) => typeof v === "string") as string);
-              const name =
+              const rawName =
                 fromProps && fromProps.trim() !== ""
                   ? fromProps.trim()
                   : SECTION_LOT_NAMES[index] ?? `Section ${index + 1}`;
+
+              // Normalize short codes like G1/S2/R3/T1/P1 to full lot names.
+              function expandShortCode(name: string): string {
+                const trimmed = name.trim();
+                const upper = trimmed.toUpperCase();
+
+                // Map generic unknown label to TBD.
+                if (upper === "UNKNOWN") return "TBD";
+
+                // General parking: G1 → GeneralParking1
+                const gMatch = /^G(\d+)$/.exec(upper);
+                if (gMatch) return `GeneralParking${gMatch[1]}`;
+
+                // Staff parking: S1 → StaffParking1
+                const sMatch = /^S(\d+)$/.exec(upper);
+                if (sMatch) return `StaffParking${sMatch[1]}`;
+
+                // Resident parking: R1 → ResidentParking1
+                const rMatch = /^R(\d+)$/.exec(upper);
+                if (rMatch) return `ResidentParking${rMatch[1]}`;
+
+                // Timed parking: T1 → TimedParking1
+                const tMatch = /^T(\d+)$/.exec(upper);
+                if (tMatch) return `TimedParking${tMatch[1]}`;
+
+                // P1 → PHDParking
+                if (upper === "P1") return "PHDParking";
+
+                return name;
+              }
+
+              const name = expandShortCode(rawName);
               return {
                 type: "Feature" as const,
                 geometry: f.geometry!,
