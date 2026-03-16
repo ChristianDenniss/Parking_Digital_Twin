@@ -83,10 +83,18 @@ async function seed() {
       occupiedCount = Math.floor(capacity * 0.35); // ~35% → dark green
     }
     const spots: ParkingSpot[] = [];
+    // Unique prefix per lot so labels don't collide across lots (e.g. TimedParking1 vs TimedParking2)
+    const lotPrefix = (() => {
+      const base = lot.name.replace(/\s/g, "");
+      const trailingNum = base.match(/\d+$/)?.[0];
+      const letters = base.slice(0, 2).toUpperCase();
+      return trailingNum != null ? `${letters}${trailingNum}` : letters;
+    })();
+
     for (let n = 0; n < capacity; n++) {
       const rowIndex = n % perRow;
       const rowLetter = rows[Math.floor(n / perRow)];
-      const prefix = lot.name.slice(0, 2).toUpperCase().replace(/\s/g, "");
+      const prefix = lotPrefix;
       const status: "occupied" | "empty" =
         occupiedCount !== null
           ? n < occupiedCount
