@@ -14,13 +14,13 @@ router.get(
   }),
   controller.getById
 );
-// Cache the per-lot spot listing as well (parking spot-related)
+// Cache the per-lot spot listing (key includes section so "all" vs "section=A" don't share cache)
 router.get(
   "/:id/spots",
   cacheMiddleware({
     prefix: "parking-lot-spots",
     ttlSeconds: 30,
-    key: (req) => `GET:/api/parking-lots/${req.params.id}/spots`,
+    key: (req) => `GET:/api/parking-lots/${req.params.id}/spots?section=${(req.query.section as string) ?? ""}`,
   }),
   controller.getSpots
 );

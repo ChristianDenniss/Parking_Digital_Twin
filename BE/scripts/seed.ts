@@ -10,14 +10,14 @@ import { LotBuildingDistance } from "../src/modules/buildings/lotBuildingDistanc
 /** Path to lot SVGs (FE/src/images/svgs). Seed reads data-spot-label from each file as source of truth. */
 const LOT_SVGS_DIR = path.join(__dirname, "../../../FE/src/images/svgs");
 
-/** Parse SVG for data-spot-label values (row + number, e.g. A-001, B-002) in document order. */
-function parseSpotLabelsFromSvg(svgContent: string): string[] {
+/** Spot layer = has data-spot-label and label does not contain "BG". Returns labels in document order (1:1 with SVG layers). */
+function parseSpotLayersFromSvg(svgContent: string): string[] {
   const re = /data-spot-label="([^"]+)"/g;
   const labels: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(svgContent)) !== null) {
     const label = m[1].trim();
-    if (label) labels.push(label);
+    if (label && !/BG/i.test(label)) labels.push(label);
   }
   return labels;
 }
@@ -110,7 +110,7 @@ async function seed() {
     if (fs.existsSync(svgPath)) {
       try {
         const content = fs.readFileSync(svgPath, "utf-8");
-        svgLabels = parseSpotLabelsFromSvg(content);
+        svgLabels = parseSpotLayersFromSvg(content);
       } catch (err) {
         console.warn(`Could not parse SVG for ${lot.name}:`, err);
       }
@@ -118,7 +118,7 @@ async function seed() {
 
     const spots: ParkingSpot[] = [];
     if (svgLabels.length > 0) {
-      // This lot has an SVG: create spots from data-spot-label (row + number), prepend lot code.
+      // SVG is source of truth: one spot per layer (in order). slotIndex = 1-based position for 1:1 match on frontend.
       svgLabels.forEach((rowAndNumber, n) => {
         const match = rowAndNumber.match(/^([A-Za-z]+)-(\d+)$/);
         const section = match ? match[1] : rowAndNumber.split("-")[0] ?? "A";
@@ -138,6 +138,7 @@ async function seed() {
             section,
             row: section,
             index,
+            slotIndex: n + 1,
             currentStatus: status,
           })
         );
@@ -168,6 +169,7 @@ async function seed() {
             section: rowLetter,
             row: rowLetter,
             index: rowIndex + 1,
+            slotIndex: null,
             currentStatus: status,
           })
         );
