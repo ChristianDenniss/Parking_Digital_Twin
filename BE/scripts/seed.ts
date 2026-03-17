@@ -53,7 +53,10 @@ async function seed() {
     await lotRepo.createQueryBuilder().delete().execute();
   }
 
-  // 16 lots (names match GEE features). Capacity from config; for lots with an SVG in FE/src/images/svgs, spots are created from data-spot-label in the file (source of truth).
+  // 16 lots (names match GEE features).
+  // capacity here is a fallback / initial value:
+  // - if an SVG exists in FE/src/images/svgs/{LotName}.svg, the real capacity and spots come from the SVG (one spot per data-spot-label).
+  // - if no SVG exists, capacity is used to generate fallback A–J rows.
   const lotsConfig: readonly { name: string; capacity: number }[] = [
     { name: "StaffParking1", capacity: 145 },
     { name: "GeneralParking1", capacity: 119 },
@@ -64,7 +67,7 @@ async function seed() {
     { name: "TimedParking2", capacity: 27 },
     { name: "StaffParking2", capacity: 6 },
     { name: "ResidentParking1", capacity: 20 },
-    { name: "ResidentParking2", capacity: 21 },
+    { name: "ResidentParking2", capacity: 23 },
     { name: "StaffParking3", capacity: 17 },
     { name: "TBD", capacity: 44 },
     { name: "PHDParking1", capacity: 17 },

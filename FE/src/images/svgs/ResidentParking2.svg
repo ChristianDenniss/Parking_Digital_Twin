@@ -28,12 +28,12 @@
 <path d="M633 395V357H753V395H633Z" fill="#84CE8F" data-spot-label="B-008"/>
 <path d="M633 440V402H753V440H633Z" fill="#84CE8F" data-spot-label="B-009"/>
 
-<!-- Middle column: row C (unchanged) -->
+<!-- Middle column: row C -->
 <path d="M379 166V128H499V166H379Z" fill="#84CE8F" data-spot-label="C-001"/>
 <path d="M379 224.5V186.5H499V224.5H379Z" fill="#84CE8F" data-spot-label="C-002"/>
 <path d="M379 283.5V245.5H499V283.5H379Z" fill="#84CE8F" data-spot-label="C-003"/>
-<path d="M379 342.5V304.5H499V342.5L379 342.5Z" fill="#84CE8F" data-spot-label="C-004"/>
-<path d="M379 401.5V363.5H499V401.5H379Z" fill="#84CE8F" data-spot-label="C-005"/>
+<rect x="379" y="304.5" width="120" height="38" fill="#84CE8F" data-spot-label="C-004"/>
+<rect x="379" y="363.5" width="120" height="38" fill="#84CE8F" data-spot-label="C-005"/>
 </g>
 <defs>
 <clipPath id="clip0_7_2">
