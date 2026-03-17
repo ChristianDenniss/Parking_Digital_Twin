@@ -1,9 +1,26 @@
 import "reflect-metadata";
+import path from "path";
+import fs from "fs";
 import { AppDataSource } from "../src/db/data-source";
 import { ParkingLot } from "../src/modules/parkingLots/parkingLot.entity";
 import { ParkingSpot } from "../src/modules/parkingSpots/parkingSpot.entity";
 import { Building } from "../src/modules/buildings/building.entity";
 import { LotBuildingDistance } from "../src/modules/buildings/lotBuildingDistance.entity";
+
+/** Path to lot SVGs (FE/src/images/svgs). Seed reads data-spot-label from each file as source of truth. */
+const LOT_SVGS_DIR = path.join(__dirname, "../../../FE/src/images/svgs");
+
+/** Spot layer = has data-spot-label and label does not contain "BG". Returns labels in document order (1:1 with SVG layers). */
+function parseSpotLayersFromSvg(svgContent: string): string[] {
+  const re = /data-spot-label="([^"]+)"/g;
+  const labels: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(svgContent)) !== null) {
+    const label = m[1].trim();
+    if (label && !/BG/i.test(label)) labels.push(label);
+  }
+  return labels;
+}
 
 /** Image URLs to randomly assign to lots if image assign fails frontend display testing. */
 const LOT_IMAGE_URLS = [
@@ -36,11 +53,11 @@ async function seed() {
     await lotRepo.createQueryBuilder().delete().execute();
   }
 
-  // 16 lots (names match GEE features); capacities define campus total spaces
-  const lotsConfig = [
+  // 16 lots (names match GEE features). Capacity from config; for lots with an SVG in FE/src/images/svgs, spots are created from data-spot-label in the file (source of truth).
+  const lotsConfig: readonly { name: string; capacity: number }[] = [
     { name: "StaffParking1", capacity: 145 },
     { name: "GeneralParking1", capacity: 119 },
-    { name: "GeneralParking2", capacity: 200 }, // X in ParkingLotINFO (estimated)
+    { name: "GeneralParking2", capacity: 200 },
     { name: "GeneralParking3", capacity: 200 },
     { name: "TimedParking1", capacity: 17 },
     { name: "GeneralParking4", capacity: 342 },
@@ -54,7 +71,7 @@ async function seed() {
     { name: "GeneralParking5", capacity: 24 },
     { name: "StaffParking4", capacity: 10 },
     { name: "ResidentParking3", capacity: 22 },
-  ] as const;
+  ];
 
   const lots: ParkingLot[] = [];
   for (const cfg of lotsConfig) {
@@ -69,42 +86,94 @@ async function seed() {
   }
 
   const BATCH = 200;
-  const rows = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+  const fallbackRows = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
   let totalSpots = 0;
   for (let lotIndex = 0; lotIndex < lots.length; lotIndex++) {
     const lot = lots[lotIndex];
     const capacity = lot.capacity;
-    const perRow = Math.ceil(capacity / rows.length);
-    // At least one lot in dark red (≥95% full), one in dark green (<40% full)
     let occupiedCount: number | null = null;
     if (lotIndex === 0) {
-      occupiedCount = Math.ceil(capacity * 0.96); // ~96% → dark red
+      occupiedCount = Math.ceil(capacity * 0.96);
     } else if (lotIndex === 1) {
-      occupiedCount = Math.floor(capacity * 0.35); // ~35% → dark green
+      occupiedCount = Math.floor(capacity * 0.35);
     }
+    const lotPrefix = (() => {
+      const base = lot.name.replace(/\s/g, "");
+      const trailingNum = base.match(/\d+$/)?.[0];
+      const letters = base.slice(0, 2).toUpperCase();
+      return trailingNum != null ? `${letters}${trailingNum}` : letters;
+    })();
+
+    // Only lots with an SVG in FE/src/images/svgs/{lotName}.svg get spots from the file; others use fallback.
+    const svgPath = path.join(LOT_SVGS_DIR, `${lot.name}.svg`);
+    let svgLabels: string[] = [];
+    if (fs.existsSync(svgPath)) {
+      try {
+        const content = fs.readFileSync(svgPath, "utf-8");
+        svgLabels = parseSpotLayersFromSvg(content);
+      } catch (err) {
+        console.warn(`Could not parse SVG for ${lot.name}:`, err);
+      }
+    }
+
     const spots: ParkingSpot[] = [];
-    for (let n = 0; n < capacity; n++) {
-      const rowIndex = n % perRow;
-      const rowLetter = rows[Math.floor(n / perRow)];
-      const prefix = lot.name.slice(0, 2).toUpperCase().replace(/\s/g, "");
-      const status: "occupied" | "empty" =
-        occupiedCount !== null
-          ? n < occupiedCount
-            ? "occupied"
-            : "empty"
-          : Math.random() < 0.5
-            ? "occupied"
-            : "empty";
-      spots.push(
-        spotRepo.create({
-          parkingLotId: lot.id,
-          label: `${prefix}-${rowLetter}-${String(rowIndex + 1).padStart(3, "0")}`,
-          section: rowLetter,
-          row: rowLetter,
-          index: rowIndex + 1,
-          currentStatus: status,
-        })
-      );
+    if (svgLabels.length > 0) {
+      // SVG is source of truth: one spot per layer (in order). slotIndex = 1-based position for 1:1 match on frontend.
+      svgLabels.forEach((rowAndNumber, n) => {
+        const match = rowAndNumber.match(/^([A-Za-z]+)-(\d+)$/);
+        const section = match ? match[1] : rowAndNumber.split("-")[0] ?? "A";
+        const index = match ? parseInt(match[2], 10) : n + 1;
+        const status: "occupied" | "empty" =
+          occupiedCount !== null
+            ? n < occupiedCount
+              ? "occupied"
+              : "empty"
+            : Math.random() < 0.5
+              ? "occupied"
+              : "empty";
+        spots.push(
+          spotRepo.create({
+            parkingLotId: lot.id,
+            label: `${lotPrefix}-${rowAndNumber}`,
+            section,
+            row: section,
+            index,
+            slotIndex: n + 1,
+            currentStatus: status,
+          })
+        );
+      });
+      if (spots.length !== capacity) {
+        console.warn(`${lot.name}: SVG has ${spots.length} spots, config capacity ${capacity}. Updating lot capacity.`);
+        lot.capacity = spots.length;
+        await lotRepo.save(lot);
+      }
+    } else {
+      // No SVG for this lot: fallback split across A–J using config capacity
+      const perRow = Math.ceil(capacity / fallbackRows.length);
+      for (let n = 0; n < capacity; n++) {
+        const rowIndex = n % perRow;
+        const rowLetter = fallbackRows[Math.floor(n / perRow)];
+        const status: "occupied" | "empty" =
+          occupiedCount !== null
+            ? n < occupiedCount
+              ? "occupied"
+              : "empty"
+            : Math.random() < 0.5
+              ? "occupied"
+              : "empty";
+        spots.push(
+          spotRepo.create({
+            parkingLotId: lot.id,
+            label: `${lotPrefix}-${rowLetter}-${String(rowIndex + 1).padStart(3, "0")}`,
+            section: rowLetter,
+            row: rowLetter,
+            index: rowIndex + 1,
+            slotIndex: null,
+            currentStatus: status,
+          })
+        );
+      }
     }
     for (let i = 0; i < spots.length; i += BATCH) {
       await spotRepo.save(spots.slice(i, i + BATCH));

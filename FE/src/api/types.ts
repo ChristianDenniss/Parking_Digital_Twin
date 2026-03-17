@@ -38,6 +38,8 @@ export interface ParkingSpot {
   section: string;
   row: string;
   index: number;
+  /** 1-based order in lot SVG (spot layers). Enables 1:1 match by position. */
+  slotIndex?: number | null;
   currentStatus: "occupied" | "empty";
   updatedAt: string;
 }

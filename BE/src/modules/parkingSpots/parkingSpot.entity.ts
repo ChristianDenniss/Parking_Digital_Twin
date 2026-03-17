@@ -30,6 +30,10 @@ export class ParkingSpot {
   @Column("integer", { default: 0 })
   index!: number;
 
+  /** 1-based order in the lot's SVG (spot layers in document order). Enables 1:1 match by position. */
+  @Column("integer", { nullable: true })
+  slotIndex!: number | null;
+
   @Column({ type: "text", default: "empty" })
   currentStatus!: "occupied" | "empty";
 

@@ -22,7 +22,7 @@ export async function findSpotsByParkingLotId(
   if (section != null && section !== "") where.section = section;
   return spotRepo().find({
     where,
-    order: { section: "ASC", row: "ASC", index: "ASC" },
+    order: { slotIndex: "ASC", section: "ASC", row: "ASC", index: "ASC" },
   });
 }
 

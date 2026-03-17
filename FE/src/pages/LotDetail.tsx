@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { ParkingLot, ParkingSpot } from "../api/types";
+import { LotHeatMap } from "../components/LotHeatMap";
+
+/** SVGs in src/images/svgs/*.svg loaded by filename = {lot.name}.svg (e.g. TimedParking1.svg) */
+const lotSvgLoaders = import.meta.glob<string>("../images/svgs/*.svg", {
+  query: "?raw",
+  import: "default",
+}) as Record<string, () => Promise<string>>;
 
 export function LotDetail() {
   const { id } = useParams<{ id: string }>();
@@ -10,14 +17,14 @@ export function LotDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [section, setSection] = useState("");
+  const [svgMarkup, setSvgMarkup] = useState<string | null>(null);
 
+  // Always fetch all spots for the lot so the heat map can match every SVG shape; filter for list by section below
   useEffect(() => {
     if (!id) return;
     Promise.all([
       api.get<ParkingLot>(`/api/parking-lots/${id}`),
-      api.get<ParkingSpot[]>(
-        `/api/parking-lots/${id}/spots${section ? `?section=${encodeURIComponent(section)}` : ""}`
-      ),
+      api.get<ParkingSpot[]>(`/api/parking-lots/${id}/spots`),
     ])
       .then(([lotData, spotsData]) => {
         setLot(lotData);
@@ -25,16 +32,26 @@ export function LotDetail() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [id, section]);
+  }, [id]);
+
+  // Load lot SVG from src/images/svgs/{lot.name}.svg (e.g. TimedParking1.svg)
+  useEffect(() => {
+    if (!lot?.name) {
+      setSvgMarkup(null);
+      return;
+    }
+    const key = `../images/svgs/${lot.name}.svg`;
+    const load = lotSvgLoaders[key];
+    if (load) {
+      load().then(setSvgMarkup).catch(() => setSvgMarkup(null));
+    } else {
+      setSvgMarkup(null);
+    }
+  }, [lot?.name]);
 
   const refreshSpots = () => {
     if (!id) return;
-    api
-      .get<ParkingSpot[]>(
-        `/api/parking-lots/${id}/spots${section ? `?section=${encodeURIComponent(section)}` : ""}`
-      )
-      .then(setSpots)
-      .catch((e) => setError(e.message));
+    api.get<ParkingSpot[]>(`/api/parking-lots/${id}/spots`).then(setSpots).catch((e) => setError(e.message));
   };
 
   const toggleStatus = async (spot: ParkingSpot) => {
@@ -71,6 +88,7 @@ export function LotDetail() {
   }
 
   const sections = [...new Set(spots.map((s) => s.section).filter(Boolean))];
+  const spotsForList = section ? spots.filter((s) => s.section === section) : spots;
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -86,10 +104,17 @@ export function LotDetail() {
       </div>
 
       <section className="mb-8">
-        <h2 className="text-lg font-semibold text-slate-800 mb-2">Lot map (closer view)</h2>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 min-h-[320px] flex items-center justify-center text-slate-500 text-sm">
-          Placeholder for manual lot map — add your digital map here.
-        </div>
+        <h2 className="text-lg font-semibold text-slate-800 mb-2">Lot heat map</h2>
+        <p className="text-slate-500 text-sm mb-2">
+          Green = free, red = taken. Click a spot on the map to toggle (or use the list below).
+        </p>
+        <LotHeatMap
+          spots={spots}
+          svgMarkup={svgMarkup}
+          onSpotClick={toggleStatus}
+          showLegend
+          className="min-h-[200px]"
+        />
       </section>
 
       {sections.length > 0 && (
@@ -114,7 +139,7 @@ export function LotDetail() {
         Click a spot to toggle occupied/empty (simulator also updates every 5s).
       </p>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-2">
-        {spots.map((spot) => (
+        {spotsForList.map((spot) => (
           <button
             key={spot.id}
             type="button"
@@ -130,7 +155,7 @@ export function LotDetail() {
           </button>
         ))}
       </div>
-      {spots.length === 0 && (
+      {spotsForList.length === 0 && (
         <p className="text-slate-500 mt-4">No spots in this lot.</p>
       )}
     </div>
