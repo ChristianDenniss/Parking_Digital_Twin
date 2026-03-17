@@ -29,7 +29,7 @@ Spots: 44, 2 being disabled
 Spots: 20, 0 being disabled
 
 10. Name: Resident Parking 2
-Spots: 21, 1 being disabled
+Spots: 23, 1 being disabled
 
 11. Name: Resident Parking 3
 Spots: 22, 0 being disabled

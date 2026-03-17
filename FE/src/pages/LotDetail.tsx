@@ -4,7 +4,7 @@ import { api } from "../api/client";
 import type { ParkingLot, ParkingSpot } from "../api/types";
 import { LotHeatMap } from "../components/LotHeatMap";
 
-/** SVGs in src/images/svgs/*.svg loaded by filename = {lot.name}.svg (e.g. TimedParking1.svg) */
+/** SVGs in src/images/svgs/*.svg loaded by filename = {lot.name}.svg. After adding new SVG files, restart the dev server (Vite glob is fixed at startup). */
 const lotSvgLoaders = import.meta.glob<string>("../images/svgs/*.svg", {
   query: "?raw",
   import: "default",
@@ -104,10 +104,6 @@ export function LotDetail() {
       </div>
 
       <section className="mb-8">
-        <h2 className="text-lg font-semibold text-slate-800 mb-2">Lot heat map</h2>
-        <p className="text-slate-500 text-sm mb-2">
-          Green = free, red = taken. Click a spot on the map to toggle (or use the list below).
-        </p>
         <LotHeatMap
           spots={spots}
           svgMarkup={svgMarkup}
