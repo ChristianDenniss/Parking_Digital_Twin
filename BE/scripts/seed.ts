@@ -104,6 +104,7 @@ async function seed() {
       return trailingNum != null ? `${letters}${trailingNum}` : letters;
     })();
 
+    // Only lots with an SVG in FE/src/images/svgs/{lotName}.svg get spots from the file; others use fallback.
     const svgPath = path.join(LOT_SVGS_DIR, `${lot.name}.svg`);
     let svgLabels: string[] = [];
     if (fs.existsSync(svgPath)) {
@@ -117,7 +118,7 @@ async function seed() {
 
     const spots: ParkingSpot[] = [];
     if (svgLabels.length > 0) {
-      // Source of truth: SVG has row + number (e.g. A-001, B-002). Prepend lot code → TI1-A-001, etc.
+      // This lot has an SVG: create spots from data-spot-label (row + number), prepend lot code.
       svgLabels.forEach((rowAndNumber, n) => {
         const match = rowAndNumber.match(/^([A-Za-z]+)-(\d+)$/);
         const section = match ? match[1] : rowAndNumber.split("-")[0] ?? "A";
@@ -147,7 +148,7 @@ async function seed() {
         await lotRepo.save(lot);
       }
     } else {
-      // No SVG: fallback split across A–J
+      // No SVG for this lot: fallback split across A–J using config capacity
       const perRow = Math.ceil(capacity / fallbackRows.length);
       for (let n = 0; n < capacity; n++) {
         const rowIndex = n % perRow;
