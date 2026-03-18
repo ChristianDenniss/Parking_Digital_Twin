@@ -14,7 +14,7 @@ Spots: 145, 0 being disabled
 Spots: 6, 2 being disabled
 
 5. Name: Staff Parking 3 
-Spots: 17, 4 being disabled
+Spots: 18, 4 being disabled
 
 6. Name: Staff Parking 4
 Spots: 10, 0 being disabled

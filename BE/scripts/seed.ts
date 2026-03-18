@@ -7,8 +7,12 @@ import { ParkingSpot } from "../src/modules/parkingSpots/parkingSpot.entity";
 import { Building } from "../src/modules/buildings/building.entity";
 import { LotBuildingDistance } from "../src/modules/buildings/lotBuildingDistance.entity";
 
-/** Path to lot SVGs (FE/src/images/svgs). Seed reads data-spot-label from each file as source of truth. */
-const LOT_SVGS_DIR = path.join(__dirname, "../../../FE/src/images/svgs");
+/** Path to lot SVGs (DTProj/FE/src/images/svgs).
+ * Seed reads data-spot-label from each file as source of truth.
+ *
+ * seed.ts lives in `BE/scripts`, so `../../FE/...` resolves back to `DTProj/FE/...`.
+ */
+const LOT_SVGS_DIR = path.join(__dirname, "../../FE/src/images/svgs");
 
 /** Spot layer = has data-spot-label and label does not contain "BG". Returns labels in document order (1:1 with SVG layers). */
 function parseSpotLayersFromSvg(svgContent: string): string[] {
@@ -68,7 +72,7 @@ async function seed() {
     { name: "StaffParking2", capacity: 6 },
     { name: "ResidentParking1", capacity: 20 },
     { name: "ResidentParking2", capacity: 23 },
-    { name: "StaffParking3", capacity: 17 },
+    { name: "StaffParking3", capacity: 18 },
     { name: "TBD", capacity: 44 },
     { name: "PHDParking1", capacity: 17 },
     { name: "GeneralParking5", capacity: 24 },
