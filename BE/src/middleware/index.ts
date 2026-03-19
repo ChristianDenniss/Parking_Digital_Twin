@@ -1,6 +1,15 @@
 import { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 
+/** Express 4: forward rejected promises from async route handlers to `errorHandler`. */
+export function asyncHandler(
+  fn: (req: Request, res: Response, next: NextFunction) => unknown | Promise<unknown>
+) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    void Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
 export class HttpError extends Error {
   status: number;
   details?: unknown;
@@ -95,5 +104,9 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
   }
 
   // Fallback
-  res.status(500).json({ error: "Internal server error" });
+  const dev = process.env.NODE_ENV !== "production";
+  res.status(500).json({
+    error: dev ? err.message || "Internal server error" : "Internal server error",
+    ...(dev && err.stack ? { stack: err.stack } : {}),
+  });
 }

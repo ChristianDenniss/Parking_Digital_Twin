@@ -7,9 +7,15 @@ import { createUserSchema, loginSchema, updateUserSchema } from "./user.schema";
 import { validate } from "../../utils/validate";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
-const JWT_EXPIRES_IN_SEC = process.env.JWT_EXPIRES_IN
-  ? Number(process.env.JWT_EXPIRES_IN)
-  : 7 * 24 * 60 * 60; // 7 days in seconds
+
+/** Seconds until JWT expiry. `JWT_EXPIRES_IN` must be a positive number (seconds). Non-numeric values (e.g. "7d") are ignored. */
+function jwtExpiresInSeconds(): number {
+  const fallback = 7 * 24 * 60 * 60;
+  const raw = process.env.JWT_EXPIRES_IN;
+  if (raw == null || raw === "") return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
 
 function toPublicUser(user: {
   id: string;
@@ -56,7 +62,7 @@ export async function register(req: Request, res: Response) {
     });
   }
   const token = jwt.sign({ sub: user.id }, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN_SEC,
+    expiresIn: jwtExpiresInSeconds(),
   });
   res.status(201).json({ user: toPublicUser(user), token });
 }
@@ -72,7 +78,7 @@ export async function login(req: Request, res: Response) {
   if (!ok) return res.status(401).json({ error: "Invalid email or password" });
 
   const token = jwt.sign({ sub: user.id }, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN_SEC,
+    expiresIn: jwtExpiresInSeconds(),
   });
   res.json({ user: toPublicUser(user), token });
 }
