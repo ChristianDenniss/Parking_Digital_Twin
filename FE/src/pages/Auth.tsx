@@ -11,6 +11,9 @@ export function Auth() {
   const [password, setPassword] = useState("");
   const [studentId, setStudentId] = useState("");
   const [name, setName] = useState("");
+  const [role, setRole] = useState<"student" | "staff" | "phd_candidate">("student");
+  const [resident, setResident] = useState(false);
+  const [disabledParking, setDisabledParking] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [message, setMessage] = useState<string | null>(null);
   const [token, setTokenState] = useState<string | null>(() =>
@@ -31,8 +34,11 @@ export function Auth() {
         const res = await api.post<AuthResponse>("/api/auth/register", {
           email,
           password,
-          studentId: studentId.trim(),
-          name: name || undefined,
+          name: name.trim(),
+          role,
+          resident,
+          disabled: disabledParking,
+          ...(role === "student" || role === "phd_candidate" ? { studentId: studentId.trim() } : {}),
         });
         setToken(res.token);
       } else {
@@ -110,17 +116,75 @@ export function Auth() {
               {mode === "register" && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Student ID
+                    Name
                   </label>
                   <input
                     type="text"
-                    value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
-                    placeholder="e.g. 1234567"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="First and last name"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-unb-red focus:border-unb-red"
                     required
                   />
                 </div>
+              )}
+              {mode === "register" && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Role
+                    </label>
+                    <select
+                      value={role}
+                      onChange={(e) =>
+                        setRole(e.target.value as "student" | "staff" | "phd_candidate")
+                      }
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-unb-red focus:border-unb-red"
+                    >
+                      <option value="student">Student</option>
+                      <option value="staff">Staff</option>
+                      <option value="phd_candidate">PhD candidate</option>
+                    </select>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Used to recommend parking you&apos;re eligible for (staff, PhD, resident, general, etc.).
+                    </p>
+                  </div>
+                  {(role === "student" || role === "phd_candidate") && (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Student ID
+                      </label>
+                      <input
+                        type="text"
+                        value={studentId}
+                        onChange={(e) => setStudentId(e.target.value)}
+                        placeholder="e.g. 1234567"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-unb-red focus:border-unb-red"
+                        required
+                      />
+                    </div>
+                  )}
+                  <div className="mb-4 space-y-2">
+                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={resident}
+                        onChange={(e) => setResident(e.target.checked)}
+                        className="rounded border-slate-300 text-unb-red focus:ring-unb-red"
+                      />
+                      I live in UNBSJ campus residence
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={disabledParking}
+                        onChange={(e) => setDisabledParking(e.target.checked)}
+                        className="rounded border-slate-300 text-unb-red focus:ring-unb-red"
+                      />
+                      I need an accessible / disabled parking stall
+                    </label>
+                  </div>
+                </>
               )}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -135,19 +199,6 @@ export function Auth() {
                   minLength={mode === "register" ? 8 : 1}
                 />
               </div>
-              {mode === "register" && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Name (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-unb-red focus:border-unb-red"
-                  />
-                </div>
-              )}
               <div className="min-h-[2.75rem] flex items-center mt-4 mb-2">
                 {message && (
                   <div

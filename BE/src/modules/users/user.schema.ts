@@ -1,19 +1,40 @@
 import { z } from "zod";
 
+const roleEnum = z.enum(["staff", "student", "phd_candidate"]);
+
 export const createUserSchema = z
   .object({
     email: z.string().min(1, { message: "Email is required" }).email("Invalid email").trim(),
     password: z.string().min(8, { message: "Password must be at least 8 characters" }),
-    name: z.string().trim().optional().nullable(),
-    studentId: z.string().min(1, { message: "Student ID is required" }).trim(),
+    name: z.string().min(1, { message: "Name is required" }).trim(),
+    role: roleEnum.default("student"),
+    resident: z.coerce.boolean().default(false),
+    /** Accessible / disabled parking stall eligibility */
+    disabled: z.coerce.boolean().default(false),
+    studentId: z.string().trim().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.role === "student" || data.role === "phd_candidate") {
+      const sid = data.studentId?.trim();
+      if (!sid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Student ID is required for student and PhD candidate accounts",
+          path: ["studentId"],
+        });
+      }
+    }
+  });
 
 export const updateUserSchema = z
   .object({
     email: z.string().email("Invalid email").trim().optional(),
     password: z.string().min(8, { message: "Password must be at least 8 characters" }).optional(),
     name: z.string().trim().optional().nullable(),
+    role: roleEnum.optional(),
+    resident: z.coerce.boolean().optional(),
+    disabled: z.coerce.boolean().optional(),
   })
   .strict();
 

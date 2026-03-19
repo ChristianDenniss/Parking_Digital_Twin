@@ -53,16 +53,25 @@ export interface ParkingSpotLog {
   parkingSpot?: { id: string; label: string };
 }
 
-export interface AuthResponse {
-  user: { id: string; email: string; name: string | null; createdAt: string };
-  token: string;
-}
-
-export interface MeResponse {
+/** Public user fields returned from auth and user APIs */
+export interface PublicUser {
   id: string;
   email: string;
   name: string | null;
   createdAt: string;
+  role: "staff" | "student" | "phd_candidate";
+  /** On-campus resident — resident parking eligibility */
+  resident: boolean;
+  /** Accessible / disabled parking stall eligibility */
+  disabled: boolean;
+}
+
+export interface AuthResponse {
+  user: PublicUser;
+  token: string;
+}
+
+export interface MeResponse extends PublicUser {
   student: {
     id: string;
     studentId: string;

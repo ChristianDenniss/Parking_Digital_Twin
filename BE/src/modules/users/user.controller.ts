@@ -11,12 +11,23 @@ const JWT_EXPIRES_IN_SEC = process.env.JWT_EXPIRES_IN
   ? Number(process.env.JWT_EXPIRES_IN)
   : 7 * 24 * 60 * 60; // 7 days in seconds
 
-function toPublicUser(user: { id: string; email: string; name: string | null; createdAt: Date }) {
+function toPublicUser(user: {
+  id: string;
+  email: string;
+  name: string | null;
+  createdAt: Date;
+  role: "staff" | "student" | "phd_candidate";
+  resident: boolean;
+  disabled: boolean;
+}) {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     createdAt: user.createdAt,
+    role: user.role,
+    resident: user.resident,
+    disabled: user.disabled,
   };
 }
 
@@ -27,17 +38,23 @@ export async function register(req: Request, res: Response) {
   const existing = await userService.findByEmail(result.data!.email);
   if (existing) return res.status(400).json({ error: "Email already registered" });
 
+  const data = result.data!;
   const user = await userService.create({
-    email: result.data!.email,
-    password: result.data!.password,
-    name: result.data!.name ?? null,
+    email: data.email,
+    password: data.password,
+    name: data.name,
+    role: data.role,
+    resident: data.resident,
+    disabled: data.disabled,
   });
-  await studentService.create({
-    userId: user.id,
-    studentId: result.data!.studentId,
-    email: user.email,
-    name: result.data!.name?.trim() || user.email,
-  });
+  if (data.role === "student" || data.role === "phd_candidate") {
+    await studentService.create({
+      userId: user.id,
+      studentId: data.studentId!.trim(),
+      email: user.email,
+      name: data.name.trim(),
+    });
+  }
   const token = jwt.sign({ sub: user.id }, JWT_SECRET, {
     expiresIn: JWT_EXPIRES_IN_SEC,
   });
