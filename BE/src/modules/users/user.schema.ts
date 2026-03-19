@@ -38,6 +38,29 @@ export const updateUserSchema = z
   })
   .strict();
 
+/** Authenticated user profile update — no password. */
+export const patchMeSchema = z
+  .object({
+    name: z.string().min(1, { message: "Name cannot be empty" }).trim().optional(),
+    email: z.string().email("Invalid email").trim().optional(),
+    role: roleEnum.optional(),
+    resident: z.coerce.boolean().optional(),
+    disabled: z.coerce.boolean().optional(),
+    /** Required when changing to student/PhD from staff (no linked student yet). */
+    studentId: z.string().trim().optional(),
+  })
+  .strict()
+  .refine(
+    (d) =>
+      d.name !== undefined ||
+      d.email !== undefined ||
+      d.role !== undefined ||
+      d.resident !== undefined ||
+      d.disabled !== undefined ||
+      d.studentId !== undefined,
+    { message: "At least one field is required to update" }
+  );
+
 export const loginSchema = z
   .object({
     email: z.string().min(1, { message: "Email is required" }).email("Invalid email").trim(),
@@ -47,4 +70,5 @@ export const loginSchema = z
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+export type PatchMeInput = z.infer<typeof patchMeSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

@@ -1,8 +1,11 @@
 openapi: 3.0.3
 info:
   title: UNB Parking Digital Twin API
-  description: Backend API for the UNB Saint John campus parking lot digital twin (MVP).
-  version: 0.1.0
+  description: >
+    Backend API for the UNB Saint John campus parking lot digital twin (MVP).
+    Includes user profiles (role, resident, accessible parking), JWT auth, class schedule,
+    lot–building distances, and parking recommendation.
+  version: 0.2.0
 
 servers:
   - url: http://localhost:3000
@@ -31,6 +34,8 @@ tags:
     description: Campus buildings and lot–building walking distances.
   - name: Users
     description: API users and auth-related endpoints.
+  - name: Auth
+    description: Registration and login (JWT).
 
 paths:
   /api/health:
@@ -243,6 +248,37 @@ paths:
                 $ref: "#/components/schemas/ParkingLot"
         "400":
           $ref: "#/components/responses/BadRequest"
+
+  /api/parking-lots/recommendation:
+    post:
+      tags:
+        - Parking lots
+      summary: Recommend closest lot with availability and a spot inside it
+      description: >
+        Picks the nearest lot to the given building that has at least one available spot (current or predicted),
+        then returns the first suitable empty spot in that lot. Use stateMode "predicted" with optional override maps for future models.
+      operationId: recommendParking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecommendParkingRequest"
+      responses:
+        "200":
+          description: Recommended lot, spot, and metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParkingRecommendationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: No suitable lot/spot for this building and state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/parking-lots/{id}:
     get:
@@ -928,6 +964,36 @@ paths:
                 $ref: "#/components/schemas/MeResponse"
         "401":
           description: Not authenticated
+    patch:
+      tags:
+        - Users
+      summary: Update current user profile (no password)
+      description: >
+        Update name, email, role, resident flag, accessible/disabled parking flag, and optionally link a student profile.
+        Switching role to staff unlinks any linked student record. Switching to student or PhD candidate without a linked
+        student requires `studentId` in the body. At least one field must be provided.
+      operationId: patchMe
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchMeRequest"
+      responses:
+        "200":
+          description: Updated user (same shape as GET /api/users/me)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Not authenticated
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/users/me/schedule:
     get:
@@ -1049,8 +1115,17 @@ components:
           type: string
           description: Error message
 
+    UserRole:
+      type: string
+      description: Account type for parking eligibility
+      enum:
+        - staff
+        - student
+        - phd_candidate
+
     User:
       type: object
+      description: Public user fields (no password hash)
       properties:
         id:
           type: string
@@ -1064,12 +1139,21 @@ components:
         createdAt:
           type: string
           format: date-time
+        role:
+          $ref: "#/components/schemas/UserRole"
+        resident:
+          type: boolean
+          description: Lives in UNBSJ campus residence (resident parking eligibility)
+        disabled:
+          type: boolean
+          description: Requires an accessible / disabled parking stall when recommending spots
 
     RegisterRequest:
       type: object
       required:
         - email
         - password
+        - name
       properties:
         email:
           type: string
@@ -1079,7 +1163,21 @@ components:
           minLength: 8
         name:
           type: string
-          nullable: true
+          minLength: 1
+          description: Full name (required)
+        role:
+          $ref: "#/components/schemas/UserRole"
+          default: student
+        resident:
+          type: boolean
+          default: false
+        disabled:
+          type: boolean
+          default: false
+          description: Accessible / disabled parking stall eligibility
+        studentId:
+          type: string
+          description: Required when role is `student` or `phd_candidate` (omit for `staff`)
 
     LoginRequest:
       type: object
@@ -1103,36 +1201,49 @@ components:
           description: JWT for Authorization header
 
     MeResponse:
+      description: Current user (public fields) plus linked student profile when present
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            student:
+              nullable: true
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                studentId:
+                  type: string
+                email:
+                  type: string
+                name:
+                  type: string
+                year:
+                  type: integer
+                  nullable: true
+
+    PatchMeRequest:
       type: object
+      description: At least one property must be sent. Password cannot be changed here.
       properties:
-        id:
+        name:
           type: string
-          format: uuid
+          minLength: 1
         email:
           type: string
           format: email
-        name:
+        role:
+          $ref: "#/components/schemas/UserRole"
+        resident:
+          type: boolean
+        disabled:
+          type: boolean
+        studentId:
           type: string
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-        student:
-          nullable: true
-          type: object
-          properties:
-            id:
-              type: string
-              format: uuid
-            studentId:
-              type: string
-            email:
-              type: string
-            name:
-              type: string
-            year:
-              type: integer
-              nullable: true
+          description: >
+            Required when your role is student or PhD candidate and no student profile is linked yet
+            (e.g. after switching from staff).
 
     UpdateUser:
       type: object
@@ -1146,6 +1257,12 @@ components:
         name:
           type: string
           nullable: true
+        role:
+          $ref: "#/components/schemas/UserRole"
+        resident:
+          type: boolean
+        disabled:
+          type: boolean
 
     ParkingLot:
       type: object
@@ -1208,6 +1325,48 @@ components:
               maximum: 100
               description: Occupancy percentage
 
+    RecommendParkingRequest:
+      type: object
+      required:
+        - buildingId
+      properties:
+        buildingId:
+          type: string
+          format: uuid
+        stateMode:
+          type: string
+          enum: [current, predicted]
+          default: current
+        predictedFreeSpotsByLotId:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+          description: Map of parking lot UUID to predicted free spot count (predicted mode)
+        predictedSpotStatusByLotId:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: string
+              enum: [empty, occupied]
+          description: Map of lot UUID to map of spot UUID to predicted status
+
+    ParkingRecommendationResponse:
+      type: object
+      properties:
+        lot:
+          $ref: "#/components/schemas/ParkingLot"
+        spot:
+          $ref: "#/components/schemas/ParkingSpot"
+        distanceMeters:
+          type: number
+        freeSpotsInSelectedLot:
+          type: integer
+        evaluatedMode:
+          type: string
+          enum: [current, predicted]
+
     ParkingSpot:
       type: object
       properties:
@@ -1226,6 +1385,10 @@ components:
           type: string
         index:
           type: integer
+        slotIndex:
+          type: integer
+          nullable: true
+          description: 1-based order in the lot SVG for heat-map mapping
         currentStatus:
           type: string
           enum: [occupied, empty]

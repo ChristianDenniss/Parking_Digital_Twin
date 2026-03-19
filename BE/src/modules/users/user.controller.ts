@@ -3,7 +3,8 @@ import * as jwt from "jsonwebtoken";
 import * as userService from "./user.service";
 import * as studentService from "../students/student.service";
 import * as classScheduleService from "../classSchedule/classSchedule.service";
-import { createUserSchema, loginSchema, updateUserSchema } from "./user.schema";
+import { createUserSchema, loginSchema, patchMeSchema, updateUserSchema } from "./user.schema";
+import type { AuthUser } from "../../middleware/auth";
 import { validate } from "../../utils/validate";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
@@ -22,18 +23,18 @@ function toPublicUser(user: {
   email: string;
   name: string | null;
   createdAt: Date;
-  role: "staff" | "student" | "phd_candidate";
-  resident: boolean;
-  disabled: boolean;
+  role?: "staff" | "student" | "phd_candidate" | null;
+  resident?: boolean | null;
+  disabled?: boolean | null;
 }) {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     createdAt: user.createdAt,
-    role: user.role,
-    resident: user.resident,
-    disabled: user.disabled,
+    role: (user.role ?? "student") as "staff" | "student" | "phd_candidate",
+    resident: Boolean(user.resident),
+    disabled: Boolean(user.disabled),
   };
 }
 
@@ -84,10 +85,91 @@ export async function login(req: Request, res: Response) {
 }
 
 export async function me(req: Request, res: Response) {
-  const user = (req as Request & { user?: { id: string; email: string; name: string | null; createdAt: Date } }).user;
+  const user = (req as Request & { user?: AuthUser }).user;
   if (!user) return res.status(401).json({ error: "Not authenticated" });
   const full = await userService.findById(user.id);
   if (!full) return res.status(404).json({ error: "User not found" });
+  res.json({
+    ...toPublicUser(full),
+    student: full.student
+      ? {
+          id: full.student.id,
+          studentId: full.student.studentId,
+          email: full.student.email,
+          name: full.student.name,
+          year: full.student.year,
+        }
+      : null,
+  });
+}
+
+export async function patchMe(req: Request, res: Response) {
+  const authUser = (req as Request & { user?: AuthUser }).user;
+  if (!authUser) return res.status(401).json({ error: "Not authenticated" });
+
+  const result = validate(patchMeSchema, req.body);
+  if (!result.valid) return res.status(400).json({ error: result.errors.join("; ") });
+  const data = result.data!;
+
+  let full = await userService.findById(authUser.id);
+  if (!full) return res.status(404).json({ error: "User not found" });
+
+  if (data.role === "staff" && full.student) {
+    await studentService.clearUserLinkByUserId(full.id);
+    full = await userService.findById(authUser.id);
+    if (!full) return res.status(404).json({ error: "User not found" });
+  }
+
+  if (data.email !== undefined) {
+    const existing = await userService.findByEmail(data.email);
+    if (existing && existing.id !== full.id) {
+      return res.status(400).json({ error: "Email already in use" });
+    }
+  }
+
+  const userPatch: Parameters<typeof userService.update>[1] = {};
+  if (data.name !== undefined) userPatch.name = data.name;
+  if (data.email !== undefined) userPatch.email = data.email;
+  if (data.role !== undefined) userPatch.role = data.role;
+  if (data.resident !== undefined) userPatch.resident = data.resident;
+  if (data.disabled !== undefined) userPatch.disabled = data.disabled;
+
+  if (Object.keys(userPatch).length > 0) {
+    const updated = await userService.update(full.id, userPatch);
+    if (!updated) return res.status(404).json({ error: "User not found" });
+  }
+
+  full = await userService.findById(authUser.id);
+  if (!full) return res.status(404).json({ error: "User not found" });
+
+  const role = full.role ?? "student";
+  if ((role === "student" || role === "phd_candidate") && !full.student) {
+    const sid = data.studentId?.trim();
+    if (!sid) {
+      return res.status(400).json({
+        error:
+          "Student ID is required when your role is Student or PhD candidate and no student profile is linked yet.",
+      });
+    }
+    await studentService.create({
+      userId: full.id,
+      studentId: sid,
+      email: full.email,
+      name: (full.name ?? "").trim() || full.email,
+    });
+    full = await userService.findById(authUser.id);
+    if (!full) return res.status(404).json({ error: "User not found" });
+  }
+
+  if (full.student && (data.name !== undefined || data.email !== undefined)) {
+    await studentService.update(full.student.id, {
+      ...(data.email !== undefined ? { email: data.email.trim().toLowerCase() } : {}),
+      ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+    });
+    full = await userService.findById(authUser.id);
+    if (!full) return res.status(404).json({ error: "User not found" });
+  }
+
   res.json({
     ...toPublicUser(full),
     student: full.student
