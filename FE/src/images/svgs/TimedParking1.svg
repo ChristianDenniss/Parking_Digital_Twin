@@ -1,32 +1,31 @@
-<svg width="801" height="484" viewBox="0 0 801 484" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g clip-path="url(#clip0_1_112)">
-<rect width="801" height="484" fill="white"/>
-<rect width="801" height="484" fill="#7E9E66"/>
-<rect x="34" y="34" width="729" height="413" fill="#D9D9D9"/>
-<rect width="55" height="484" fill="#D9D9D9"/>
-<rect x="49" width="108" height="127" fill="#7E9E66"/>
-<!-- Spot labels = row + number only (e.g. A-001). Seed prepends lot code (TI1) when creating spots. -->
-<rect x="89" y="338" width="42" height="75" fill="#84CE8F" data-spot-label="B-002"/>
-<path d="M185 68H227V143H185V68Z" fill="#84CE8F" data-spot-label="A-001"/>
-<rect x="185" y="338" width="42" height="75" fill="#A5CEDC" data-spot-label="B-003"/>
-<rect x="435" y="338" width="42" height="75" fill="#A5CEDC" data-spot-label="B-005"/>
-<path d="M248 68H290V143H248V68Z" fill="#84CE8F" data-spot-label="A-002"/>
-<path d="M311 68H353V143H311V68Z" fill="#84CE8F" data-spot-label="A-003"/>
-<path d="M374 68H416V143H374V68Z" fill="#84CE8F" data-spot-label="A-004"/>
-<path d="M437 68H479V143H437V68Z" fill="#84CE8F" data-spot-label="A-005"/>
-<path d="M561 68H603V143H561V68Z" fill="#84CE8F" data-spot-label="A-006"/>
-<path d="M687 68H729V143H687V68Z" fill="#84CE8F" data-spot-label="B-001"/>
-<path d="M624 68H666V143H624V68Z" fill="#84CE8F" data-spot-label="A-007"/>
-<path d="M498 68H540V143H498V68Z" fill="#84CE8F" data-spot-label="A-008"/>
-<rect x="262" y="338" width="42" height="75" fill="#A5CEDC" data-spot-label="B-004"/>
-<rect x="358" y="338" width="42" height="75" fill="#A5CEDC" data-spot-label="B-006"/>
-<rect x="608" y="338" width="42" height="75" fill="#84CE8F" data-spot-label="B-007"/>
-<rect x="685" y="338" width="42" height="75" fill="#84CE8F" data-spot-label="B-008"/>
-<rect x="531" y="338" width="42" height="75" fill="#A5CEDC" data-spot-label="B-009"/>
+<svg width="861" height="484" viewBox="0 0 861 484" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="TimedParking1" clip-path="url(#clip0_1_112)">
+<rect width="861" height="484" fill="white"></rect>
+<rect id="grassBG" width="861" height="484" fill="#7E9E66"></rect>
+<rect id="Lot_PavementBG" x="37" y="34" width="783" height="413" fill="#D9D9D9"></rect>
+<rect id="Lot_PavementBG_2" width="59" height="484" fill="#D9D9D9"></rect>
+<rect id="grassBG_2" x="53" width="116" height="127" fill="#7E9E66"></rect>
+<rect id="A-001" x="96" y="338" width="45" height="75" fill="#84CE8F"></rect>
+<path id="B-001" d="M199 68H244V143H199V68Z" fill="#84CE8F"></path>
+<rect id="A-002" x="199" y="338" width="45" height="75" fill="#A5CEDC"></rect>
+<rect id="A-005" x="468" y="338" width="45" height="75" fill="#A5CEDC"></rect>
+<path id="B-002" d="M267 68H312V143H267V68Z" fill="#84CE8F"></path>
+<path id="B-003" d="M334 68H379V143H334V68Z" fill="#84CE8F"></path>
+<path id="B-004" d="M402 68H447V143H402V68Z" fill="#84CE8F"></path>
+<path id="B-005" d="M470 68H515V143H470V68Z" fill="#84CE8F"></path>
+<path id="B-007" d="M603 68H648V143H603V68Z" fill="#84CE8F"></path>
+<path id="B-009" d="M738 68H784V143H738V68Z" fill="#84CE8F"></path>
+<path id="B-008" d="M671 68H716V143H671V68Z" fill="#84CE8F"></path>
+<path id="B-006" d="M535 68H580V143H535V68Z" fill="#84CE8F"></path>
+<rect id="A-003" x="282" y="338" width="45" height="75" fill="#A5CEDC"></rect>
+<rect id="A-004" x="385" y="338" width="45" height="75" fill="#A5CEDC"></rect>
+<rect id="A-007" x="654" y="338" width="45" height="75" fill="#84CE8F"></rect>
+<rect id="A-008" x="736" y="338" width="45" height="75" fill="#84CE8F"></rect>
+<rect id="A-006" x="571" y="338" width="45" height="75" fill="#A5CEDC"></rect>
 </g>
 <defs>
 <clipPath id="clip0_1_112">
-<rect width="801" height="484" fill="white"/>
+<rect width="861" height="484" fill="white"></rect>
 </clipPath>
 </defs>
 </svg>

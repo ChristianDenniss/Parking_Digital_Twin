@@ -1,43 +1,43 @@
 <svg width="861" height="484" viewBox="0 0 861 484" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g clip-path="url(#clip0_8_191)">
-<rect width="861" height="484" fill="#D9D9D9"/>
-<rect width="861" height="484" fill="#D9D9D9"/>
-<rect x="278" y="194" width="583" height="290" fill="#898989"/>
-<rect x="1" y="207" width="10" height="277" fill="#BABABA"/>
-<rect x="-7.9725" y="192.6" width="9" height="21.945" transform="rotate(-30 -7.9725 192.6)" fill="#BABABA"/>
-<rect x="-1" y="207" width="5" height="277" fill="#7E9E66"/>
-<rect x="406" y="134" width="583" height="241" fill="#898989"/>
-<rect x="539" y="12" width="322" height="309" fill="#898989"/>
-<path d="M165 475V460H265V475H165Z" fill="#84CE8F" data-spot-label="A-001"/>
-<path d="M165 457V442H265V457H165Z" fill="#84CE8F" data-spot-label="A-002"/>
-<path d="M165 439V424H265V439H165Z" fill="#84CE8F" data-spot-label="A-003"/>
-<path d="M165 421V406H265V421H165Z" fill="#84CE8F" data-spot-label="A-004"/>
-<path d="M165 403V388H265V403H165Z" fill="#84CE8F" data-spot-label="A-005"/>
-<path d="M165 385V370H265V385H165Z" fill="#84CE8F" data-spot-label="A-006"/>
-<path d="M165 367V352H265V367H165Z" fill="#84CE8F" data-spot-label="A-007"/>
-<path d="M165 349V334H265V349H165Z" fill="#84CE8F" data-spot-label="A-008"/>
-<path d="M165 331V316H265V331H165Z" fill="#84CE8F" data-spot-label="A-009"/>
-<path d="M165 313V298H265V313H165Z" fill="#84CE8F" data-spot-label="A-010"/>
-<path d="M165 295V280H265V295H165Z" fill="#84CE8F" data-spot-label="A-011"/>
-<path d="M165 277V262H265V277H165Z" fill="#84CE8F" data-spot-label="A-012"/>
-<path d="M165 259V244H265V259H165Z" fill="#84CE8F" data-spot-label="A-013"/>
-<path d="M165 241V226H265V241H165Z" fill="#84CE8F" data-spot-label="A-014"/>
-<path d="M165 223V208H265V223H165Z" fill="#84CE8F" data-spot-label="A-015"/>
-<path d="M421 27H439V127H421V27Z" fill="#84CE8F" data-spot-label="A-016"/>
-<path d="M449 27H467V127H449V27Z" fill="#84CE8F" data-spot-label="A-017"/>
-<path d="M477 27H495V127H477V27Z" fill="#84CE8F" data-spot-label="A-018"/>
-<path d="M505 27H523V127H505V27Z" fill="#84CE8F" data-spot-label="A-019"/>
-<path d="M295 188V173H395V188H295Z" fill="#A5CEDC" data-spot-label="B-001"/>
-<path d="M295 170V155H395V170H295Z" fill="#A5CEDC" data-spot-label="B-002"/>
-<path d="M295 152V137H395V152H295Z" fill="#A5CEDC" data-spot-label="B-003"/>
-<path d="M295 134V119H395V134H295Z" fill="#A5CEDC" data-spot-label="B-004"/>
-<path d="M295 116V101H395V116H295Z" fill="#A5CEDC" data-spot-label="B-005"/>
-<path d="M295 98V83H395V98H295Z" fill="#A5CEDC" data-spot-label="B-006"/>
-<rect x="-8.92587" y="203.073" width="9" height="9.85177" transform="rotate(-30 -8.92587 203.073)" fill="#7E9E66"/>
+<g id="TimedParking2" clip-path="url(#clip0_8_191)">
+<rect width="861" height="484" fill="#D9D9D9"></rect>
+<rect id="grassBG" width="861" height="484" fill="#D9D9D9"></rect>
+<rect id="Lot_PavementBG" x="278" y="194" width="583" height="290" fill="#898989"></rect>
+<rect id="Lot_PavementBG_2" x="1" y="207" width="10" height="277" fill="#BABABA"></rect>
+<rect id="Lot_PavementBG_3" x="-7.9725" y="192.6" width="9" height="21.945" transform="rotate(-30 -7.9725 192.6)" fill="#BABABA"></rect>
+<rect id="Lot_PavementBG_4" x="-1" y="207" width="5" height="277" fill="#7E9E66"></rect>
+<rect id="Lot_PavementBG_5" x="406" y="134" width="583" height="241" fill="#898989"></rect>
+<rect id="Lot_PavementBG_6" x="539" y="12" width="322" height="309" fill="#898989"></rect>
+<path id="A-015" d="M165 475V460H265V475H165Z" fill="#84CE8F"></path>
+<path id="A-014" d="M165 457V442H265V457H165Z" fill="#84CE8F"></path>
+<path id="A-013" d="M165 439V424H265V439H165Z" fill="#84CE8F"></path>
+<path id="A-012" d="M165 421V406H265V421H165Z" fill="#84CE8F"></path>
+<path id="A-011" d="M165 403V388H265V403H165Z" fill="#84CE8F"></path>
+<path id="A-010" d="M165 385V370H265V385H165Z" fill="#84CE8F"></path>
+<path id="A-009" d="M165 367V352H265V367H165Z" fill="#84CE8F"></path>
+<path id="A-008" d="M165 349V334H265V349H165Z" fill="#84CE8F"></path>
+<path id="A-007" d="M165 331V316H265V331H165Z" fill="#84CE8F"></path>
+<path id="A-006" d="M165 313V298H265V313H165Z" fill="#84CE8F"></path>
+<path id="A-005" d="M165 295V280H265V295H165Z" fill="#84CE8F"></path>
+<path id="A-004" d="M165 277V262H265V277H165Z" fill="#84CE8F"></path>
+<path id="A-003" d="M165 259V244H265V259H165Z" fill="#84CE8F"></path>
+<path id="A-002" d="M165 241V226H265V241H165Z" fill="#84CE8F"></path>
+<path id="A-001" d="M165 223V208H265V223H165Z" fill="#84CE8F"></path>
+<path id="C-004" d="M421 27H439V127H421V27Z" fill="#84CE8F"></path>
+<path id="C-003" d="M449 27H467V127H449V27Z" fill="#84CE8F"></path>
+<path id="C-002" d="M477 27H495V127H477V27Z" fill="#84CE8F"></path>
+<path id="C-001" d="M505 27H523V127H505V27Z" fill="#84CE8F"></path>
+<path id="B-006" d="M295 188V173H395V188H295Z" fill="#A5CEDC"></path>
+<path id="B-005" d="M295 170V155H395V170H295Z" fill="#A5CEDC"></path>
+<path id="B-004" d="M295 152V137H395V152H295Z" fill="#A5CEDC"></path>
+<path id="B-003" d="M295 134V119H395V134H295Z" fill="#A5CEDC"></path>
+<path id="B-002" d="M295 116V101H395V116H295Z" fill="#A5CEDC"></path>
+<path id="B-001" d="M295 98V83H395V98H295Z" fill="#A5CEDC"></path>
+<rect id="Lot_PavementBG_7" x="-8.92587" y="203.073" width="9" height="9.85177" transform="rotate(-30 -8.92587 203.073)" fill="#7E9E66"></rect>
 </g>
 <defs>
 <clipPath id="clip0_8_191">
-<rect width="861" height="484" fill="white"/>
+<rect width="861" height="484" fill="white"></rect>
 </clipPath>
 </defs>
 </svg>

@@ -1,35 +1,34 @@
 <svg width="861" height="484" viewBox="0 0 861 484" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g clip-path="url(#clip0_7_48)">
-<rect width="861" height="484" fill="white"/>
-<rect x="1" width="861" height="484" fill="#7E9E66"/>
-<rect x="283" width="538" height="484" fill="#D9D9D9"/>
-<rect x="1" width="312" height="44" fill="#D9D9D9"/>
-<path d="M298 28L359.488 484.75H236.512L298 28Z" fill="#D9D9D9"/>
-<!-- Row A: 20 stalls (A-001..A-020), ordered top→bottom along the ramp -->
-<rect x="299" y="479" width="19" height="200" transform="rotate(-90 299 479)" fill="#84CE8F" data-spot-label="A-001"/>
-<rect x="300" y="455" width="19" height="200" transform="rotate(-90 300 455)" fill="#84CE8F" data-spot-label="A-002"/>
-<rect x="306" y="431" width="19" height="200" transform="rotate(-90 306 431)" fill="#84CE8F" data-spot-label="A-003"/>
-<rect x="307" y="407" width="19" height="200" transform="rotate(-90 307 407)" fill="#84CE8F" data-spot-label="A-004"/>
-<rect x="313" y="383" width="19" height="200" transform="rotate(-90 313 383)" fill="#84CE8F" data-spot-label="A-005"/>
-<rect x="314" y="359" width="19" height="200" transform="rotate(-90 314 359)" fill="#84CE8F" data-spot-label="A-006"/>
-<rect x="319" y="335" width="19" height="200" transform="rotate(-90 319 335)" fill="#84CE8F" data-spot-label="A-007"/>
-<rect x="320" y="311" width="19" height="200" transform="rotate(-90 320 311)" fill="#84CE8F" data-spot-label="A-008"/>
-<rect x="325" y="287" width="19" height="200" transform="rotate(-90 325 287)" fill="#84CE8F" data-spot-label="A-009"/>
-<rect x="326" y="263" width="19" height="200" transform="rotate(-90 326 263)" fill="#84CE8F" data-spot-label="A-010"/>
-<rect x="330" y="239" width="19" height="200" transform="rotate(-90 330 239)" fill="#84CE8F" data-spot-label="A-011"/>
-<rect x="330" y="215" width="19" height="200" transform="rotate(-90 330 215)" fill="#84CE8F" data-spot-label="A-012"/>
-<rect x="335" y="191" width="19" height="200" transform="rotate(-90 335 191)" fill="#84CE8F" data-spot-label="A-013"/>
-<rect x="337" y="167" width="19" height="200" transform="rotate(-90 337 167)" fill="#84CE8F" data-spot-label="A-014"/>
-<rect x="339" y="143" width="19" height="200" transform="rotate(-90 339 143)" fill="#84CE8F" data-spot-label="A-015"/>
-<rect x="341" y="119" width="19" height="200" transform="rotate(-90 341 119)" fill="#84CE8F" data-spot-label="A-016"/>
-<rect x="342" y="95" width="19" height="200" transform="rotate(-90 342 95)" fill="#84CE8F" data-spot-label="A-017"/>
-<rect x="342" y="71" width="19" height="200" transform="rotate(-90 342 71)" fill="#84CE8F" data-spot-label="A-018"/>
-<rect x="342" y="47" width="19" height="200" transform="rotate(-90 342 47)" fill="#84CE8F" data-spot-label="A-019"/>
-<rect x="343" y="23" width="19" height="200" transform="rotate(-90 343 23)" fill="#84CE8F" data-spot-label="A-020"/>
+<g id="ResidentParking1" clip-path="url(#clip0_7_48)">
+<rect width="861" height="484" fill="white"></rect>
+<rect id="grassBG" x="1" width="861" height="484" fill="#7E9E66"></rect>
+<rect id="Lot_PavementBG" x="283" width="538" height="484" fill="#D9D9D9"></rect>
+<rect id="Lot_PavementBG_2" x="1" width="312" height="44" fill="#D9D9D9"></rect>
+<path id="Lot_PavementBG_3" d="M298 28L359.488 484.75H236.512L298 28Z" fill="#D9D9D9"></path>
+<rect id="A-001" x="299" y="479" width="19" height="200" transform="rotate(-90 299 479)" fill="#84CE8F"></rect>
+<rect id="A-002" x="300" y="455" width="19" height="200" transform="rotate(-90 300 455)" fill="#84CE8F"></rect>
+<rect id="A-003" x="306" y="431" width="19" height="200" transform="rotate(-90 306 431)" fill="#84CE8F"></rect>
+<rect id="A-004" x="307" y="407" width="19" height="200" transform="rotate(-90 307 407)" fill="#84CE8F"></rect>
+<rect id="A-005" x="313" y="383" width="19" height="200" transform="rotate(-90 313 383)" fill="#84CE8F"></rect>
+<rect id="A-006" x="314" y="359" width="19" height="200" transform="rotate(-90 314 359)" fill="#84CE8F"></rect>
+<rect id="A-007" x="319" y="335" width="19" height="200" transform="rotate(-90 319 335)" fill="#84CE8F"></rect>
+<rect id="A-008" x="320" y="311" width="19" height="200" transform="rotate(-90 320 311)" fill="#84CE8F"></rect>
+<rect id="A-009" x="325" y="287" width="19" height="200" transform="rotate(-90 325 287)" fill="#84CE8F"></rect>
+<rect id="A-010" x="326" y="263" width="19" height="200" transform="rotate(-90 326 263)" fill="#84CE8F"></rect>
+<rect id="A-011" x="330" y="239" width="19" height="200" transform="rotate(-90 330 239)" fill="#84CE8F"></rect>
+<rect id="A-012" x="330" y="215" width="19" height="200" transform="rotate(-90 330 215)" fill="#84CE8F"></rect>
+<rect id="A-013" x="335" y="191" width="19" height="200" transform="rotate(-90 335 191)" fill="#84CE8F"></rect>
+<rect id="A-014" x="337" y="167" width="19" height="200" transform="rotate(-90 337 167)" fill="#84CE8F"></rect>
+<rect id="A-015" x="339" y="143" width="19" height="200" transform="rotate(-90 339 143)" fill="#84CE8F"></rect>
+<rect id="A-016" x="341" y="119" width="19" height="200" transform="rotate(-90 341 119)" fill="#84CE8F"></rect>
+<rect id="A-017" x="342" y="95" width="19" height="200" transform="rotate(-90 342 95)" fill="#84CE8F"></rect>
+<rect id="A-018" x="342" y="71" width="19" height="200" transform="rotate(-90 342 71)" fill="#84CE8F"></rect>
+<rect id="A-019" x="342" y="47" width="19" height="200" transform="rotate(-90 342 47)" fill="#84CE8F"></rect>
+<rect id="A-020" x="343" y="23" width="19" height="200" transform="rotate(-90 343 23)" fill="#84CE8F"></rect>
 </g>
 <defs>
 <clipPath id="clip0_7_48">
-<rect width="861" height="484" fill="white"/>
+<rect width="861" height="484" fill="white"></rect>
 </clipPath>
 </defs>
 </svg>

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import * as parkingLotService from "./parkingLot.service";
-import { createParkingLotSchema } from "./parkingLot.schema";
+import { createParkingLotSchema, recommendParkingSchema } from "./parkingLot.schema";
 import { validate } from "../../utils/validate";
 
 export async function list(req: Request, res: Response) {
@@ -38,4 +38,28 @@ export async function create(req: Request, res: Response) {
   if (!result.valid) return res.status(400).json({ error: result.errors.join("; ") });
   const lot = await parkingLotService.create(result.data!);
   res.status(201).json(lot);
+}
+
+export async function recommend(req: Request, res: Response) {
+  const result = validate(recommendParkingSchema, req.body);
+  if (!result.valid) return res.status(400).json({ error: result.errors.join("; ") });
+
+  const data = result.data!;
+  const recommendation = await parkingLotService.recommendBestParking({
+    ...data,
+    stateMode: data.stateMode ?? "current",
+  });
+  if (!recommendation) {
+    return res.status(404).json({
+      error: "No parking recommendation available for this building and state.",
+    });
+  }
+
+  return res.json({
+    lot: recommendation.lot,
+    spot: recommendation.spot,
+    distanceMeters: recommendation.distanceMeters,
+    freeSpotsInSelectedLot: recommendation.freeSpotsInSelectedLot,
+    evaluatedMode: recommendation.evaluatedMode,
+  });
 }

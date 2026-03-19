@@ -1,66 +1,63 @@
 <svg width="861" height="484" viewBox="0 0 861 484" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g clip-path="url(#clip0_8_159)">
-<rect width="861" height="484" fill="white"/>
-<rect width="861" height="484" fill="#7E9E66"/>
-<rect y="20" width="861" height="464" fill="#D9D9D9"/>
-<rect width="43" height="94" fill="#7E9E66"/>
-<rect y="195" width="21" height="94" fill="#7E9E66"/>
-<rect x="840" width="21" height="94" fill="#7E9E66"/>
-<path d="M68 30H113V105H68V30Z" fill="#84CE8F" data-spot-label="A-001"/>
-<path d="M136 30H181V105H136V30Z" fill="#84CE8F" data-spot-label="A-002"/>
-<path d="M204 30H249V105H204V30Z" fill="#84CE8F" data-spot-label="A-003"/>
-<path d="M272 30H317V105H272V30Z" fill="#84CE8F" data-spot-label="A-004"/>
-<path d="M340 30H385V105H340V30Z" fill="#84CE8F" data-spot-label="A-005"/>
-<path d="M408 30H453V105H408V30Z" fill="#84CE8F" data-spot-label="A-006"/>
-<path d="M476 30H521V105H476V30Z" fill="#84CE8F" data-spot-label="A-007"/>
-<path d="M544 30H589V105H544V30Z" fill="#84CE8F" data-spot-label="A-008"/>
-<path d="M612 30H657V105H612V30Z" fill="#84CE8F" data-spot-label="A-009"/>
-<path d="M680 30H725V105H680V30Z" fill="#84CE8F" data-spot-label="A-010"/>
-<path d="M748 30H793V105H748V30Z" fill="#84CE8F" data-spot-label="A-011"/>
-<!-- Row B: 11 stalls, first two disabled -->
-<path d="M68 169H113V244H68V169Z" fill="#A5CEDC" data-spot-label="B-001"/>
-<path d="M136 169H181V244H136V169Z" fill="#A5CEDC" data-spot-label="B-002"/>
-<path d="M204 169H249V244H204V169Z" fill="#84CE8F" data-spot-label="B-003"/>
-<path d="M272 169H317V244H272V169Z" fill="#84CE8F" data-spot-label="B-004"/>
-<path d="M340 169H385V244H340V169Z" fill="#84CE8F" data-spot-label="B-005"/>
-<path d="M408 169H453V244H408V169Z" fill="#84CE8F" data-spot-label="B-006"/>
-<path d="M476 169H521V244H476V169Z" fill="#84CE8F" data-spot-label="B-007"/>
-<path d="M544 169H589V244H544V169Z" fill="#84CE8F" data-spot-label="B-008"/>
-<path d="M612 169H657V244H612V169Z" fill="#84CE8F" data-spot-label="B-009"/>
-<path d="M680 169H725V244H680V169Z" fill="#84CE8F" data-spot-label="B-010"/>
-<path d="M748 169H793V244H748V169Z" fill="#84CE8F" data-spot-label="B-011"/>
-<!-- Row C: 11 regular stalls -->
-<path d="M68 249H113V324H68V249Z" fill="#84CE8F" data-spot-label="C-001"/>
-<path d="M136 249H181V324H136V249Z" fill="#84CE8F" data-spot-label="C-002"/>
-<path d="M204 249H249V324H204V249Z" fill="#84CE8F" data-spot-label="C-003"/>
-<path d="M272 249H317V324H272V249Z" fill="#84CE8F" data-spot-label="C-004"/>
-<path d="M340 249H385V324H340V249Z" fill="#84CE8F" data-spot-label="C-005"/>
-<path d="M408 249H453V324H408V249Z" fill="#84CE8F" data-spot-label="C-006"/>
-<path d="M476 249H521V324H476V249Z" fill="#84CE8F" data-spot-label="C-007"/>
-<path d="M544 249H589V324H544V249Z" fill="#84CE8F" data-spot-label="C-008"/>
-<path d="M612 249H657V324H612V249Z" fill="#84CE8F" data-spot-label="C-009"/>
-<path d="M680 249H725V324H680V249Z" fill="#84CE8F" data-spot-label="C-010"/>
-<path d="M748 249H793V324H748V249Z" fill="#84CE8F" data-spot-label="C-011"/>
-<!-- Row D: 11 regular stalls -->
-<path d="M68 388H113V463H68V388Z" fill="#84CE8F" data-spot-label="D-001"/>
-<path d="M136 388H181V463H136V388Z" fill="#84CE8F" data-spot-label="D-002"/>
-<path d="M204 388H249V463H204V388Z" fill="#84CE8F" data-spot-label="D-003"/>
-<path d="M272 388H317V463H272V388Z" fill="#84CE8F" data-spot-label="D-004"/>
-<path d="M340 388H385V463H340V388Z" fill="#84CE8F" data-spot-label="D-005"/>
-<path d="M408 388H453V463H408V388Z" fill="#84CE8F" data-spot-label="D-006"/>
-<path d="M476 388H521V463H476V388Z" fill="#84CE8F" data-spot-label="D-007"/>
-<path d="M544 388H589V463H544V388Z" fill="#84CE8F" data-spot-label="D-008"/>
-<path d="M612 388H657V463H612V388Z" fill="#84CE8F" data-spot-label="D-009"/>
-<path d="M680 388H725V463H680V388Z" fill="#84CE8F" data-spot-label="D-010"/>
-<path d="M748 388H793V463H748V388Z" fill="#84CE8F" data-spot-label="D-011"/>
-<rect y="472" width="861" height="12" fill="#BABABA"/>
-<rect y="426" width="21" height="58" fill="#BABABA"/>
-<rect x="840" y="426" width="21" height="58" fill="#BABABA"/>
-<rect x="840" y="190" width="21" height="128" fill="#BABABA"/>
+<g id="TBD" clip-path="url(#clip0_8_159)">
+<rect width="861" height="484" fill="white"></rect>
+<rect id="grassBG" width="861" height="484" fill="#7E9E66"></rect>
+<rect id="Lot_PavementBG" y="20" width="861" height="464" fill="#D9D9D9"></rect>
+<rect id="grassBG_2" width="43" height="94" fill="#7E9E66"></rect>
+<rect id="grassBG_3" y="195" width="21" height="94" fill="#7E9E66"></rect>
+<rect id="grassBG_4" x="840" width="21" height="94" fill="#7E9E66"></rect>
+<path id="D-011" d="M68 30H113V105H68V30Z" fill="#84CE8F"></path>
+<path id="D-010" d="M136 30H181V105H136V30Z" fill="#84CE8F"></path>
+<path id="D-009" d="M204 30H249V105H204V30Z" fill="#84CE8F"></path>
+<path id="D-008" d="M272 30H317V105H272V30Z" fill="#84CE8F"></path>
+<path id="D-007" d="M340 30H385V105H340V30Z" fill="#84CE8F"></path>
+<path id="D-006" d="M408 30H453V105H408V30Z" fill="#84CE8F"></path>
+<path id="D-005" d="M476 30H521V105H476V30Z" fill="#84CE8F"></path>
+<path id="D-004" d="M544 30H589V105H544V30Z" fill="#84CE8F"></path>
+<path id="D-003" d="M612 30H657V105H612V30Z" fill="#84CE8F"></path>
+<path id="D-002" d="M680 30H725V105H680V30Z" fill="#84CE8F"></path>
+<path id="D-001" d="M748 30H793V105H748V30Z" fill="#84CE8F"></path>
+<path id="C-011" d="M68 169H113V244H68V169Z" fill="#84CE8F"></path>
+<path id="C-010" d="M136 169H181V244H136V169Z" fill="#84CE8F"></path>
+<path id="C-009" d="M204 169H249V244H204V169Z" fill="#84CE8F"></path>
+<path id="C-008" d="M272 169H317V244H272V169Z" fill="#84CE8F"></path>
+<path id="C-007" d="M340 169H385V244H340V169Z" fill="#84CE8F"></path>
+<path id="C-006" d="M408 169H453V244H408V169Z" fill="#84CE8F"></path>
+<path id="C-005" d="M476 169H521V244H476V169Z" fill="#84CE8F"></path>
+<path id="C-004" d="M544 169H589V244H544V169Z" fill="#84CE8F"></path>
+<path id="C-003" d="M612 169H657V244H612V169Z" fill="#84CE8F"></path>
+<path id="C-002" d="M680 169H725V244H680V169Z" fill="#84CE8F"></path>
+<path id="C-001" d="M748 169H793V244H748V169Z" fill="#84CE8F"></path>
+<path id="B-001" d="M68 249H113V324H68V249Z" fill="#84CE8F"></path>
+<path id="B-002" d="M136 249H181V324H136V249Z" fill="#84CE8F"></path>
+<path id="B-003" d="M204 249H249V324H204V249Z" fill="#84CE8F"></path>
+<path id="B-004" d="M272 249H317V324H272V249Z" fill="#84CE8F"></path>
+<path id="B-005" d="M340 249H385V324H340V249Z" fill="#84CE8F"></path>
+<path id="B-006" d="M408 249H453V324H408V249Z" fill="#84CE8F"></path>
+<path id="B-007" d="M476 249H521V324H476V249Z" fill="#84CE8F"></path>
+<path id="B-008" d="M544 249H589V324H544V249Z" fill="#84CE8F"></path>
+<path id="B-009" d="M612 249H657V324H612V249Z" fill="#84CE8F"></path>
+<path id="B-010" d="M680 249H725V324H680V249Z" fill="#84CE8F"></path>
+<path id="B-011" d="M748 249H793V324H748V249Z" fill="#84CE8F"></path>
+<path id="A-011" d="M68 388H113V463H68V388Z" fill="#84CE8F"></path>
+<path id="A-010" d="M136 388H181V463H136V388Z" fill="#84CE8F"></path>
+<path id="A-009" d="M204 388H249V463H204V388Z" fill="#84CE8F"></path>
+<path id="A-008" d="M272 388H317V463H272V388Z" fill="#84CE8F"></path>
+<path id="A-007" d="M340 388H385V463H340V388Z" fill="#84CE8F"></path>
+<path id="A-006" d="M408 388H453V463H408V388Z" fill="#84CE8F"></path>
+<path id="A-005" d="M476 388H521V463H476V388Z" fill="#84CE8F"></path>
+<path id="A-004" d="M544 388H589V463H544V388Z" fill="#84CE8F"></path>
+<path id="A-003" d="M612 388H657V463H612V388Z" fill="#84CE8F"></path>
+<path id="A-002" d="M680 388H725V463H680V388Z" fill="#84CE8F"></path>
+<path id="A-001" d="M748 388H793V463H748V388Z" fill="#84CE8F"></path>
+<rect id="grassBG_5" y="472" width="861" height="12" fill="#BABABA"></rect>
+<rect id="grassBG_6" y="426" width="21" height="58" fill="#BABABA"></rect>
+<rect id="grassBG_7" x="840" y="426" width="21" height="58" fill="#BABABA"></rect>
+<rect id="grassBG_8" x="840" y="190" width="21" height="128" fill="#BABABA"></rect>
 </g>
 <defs>
 <clipPath id="clip0_8_159">
-<rect width="861" height="484" fill="white"/>
+<rect width="861" height="484" fill="white"></rect>
 </clipPath>
 </defs>
 </svg>

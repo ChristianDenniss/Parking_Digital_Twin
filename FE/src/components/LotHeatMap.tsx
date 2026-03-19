@@ -14,6 +14,7 @@ const OCCUPIED_COLOR = "#ef4444";
 
 // Disabled stalls are rendered as light/dark blue instead of green/red.
 // We detect them by the original SVG fill color they were authored with.
+const SVG_ENABLED_EMPTY_ORIGINAL_FILL = "#84CE8F";
 const DISABLED_EMPTY_ORIGINAL_FILL = "#A5CEDC";
 function darkenHex(hex: string, factor: number): string {
   // factor: 0..1 (lower => darker). Example 0.55 = "55% brightness".
@@ -51,12 +52,25 @@ export function LotHeatMap({
     if (!svgMarkup || !svgContainerRef.current) return;
     const root = svgContainerRef.current.querySelector("svg");
     if (!root) return;
-    const allWithLabel = Array.from(root.querySelectorAll("[data-spot-label]"));
-    const spotLayers = allWithLabel.filter((el) => {
+    const labeledLayers = Array.from(root.querySelectorAll("[data-spot-label]"));
+    let spotLayers = labeledLayers.filter((el) => {
       const label = (el as SVGElement).getAttribute("data-spot-label") ?? "";
       const id = (el as SVGElement).getAttribute("id") ?? "";
       return !/BG/i.test(label) && !/BG/i.test(id);
     });
+    // Fallback for SVGs without data-spot-label:
+    // Use author fills (#84CE8F / #A5CEDC) to identify stall shapes, in DOM order.
+    if (spotLayers.length === 0) {
+      const fillLayers = Array.from(
+        root.querySelectorAll(
+          `rect[fill="${SVG_ENABLED_EMPTY_ORIGINAL_FILL}"], path[fill="${SVG_ENABLED_EMPTY_ORIGINAL_FILL}"], rect[fill="${DISABLED_EMPTY_ORIGINAL_FILL}"], path[fill="${DISABLED_EMPTY_ORIGINAL_FILL}"]`,
+        )
+      );
+      spotLayers = fillLayers.filter((el) => {
+        const fill = (el as SVGElement).getAttribute("fill") ?? "";
+        return fill === SVG_ENABLED_EMPTY_ORIGINAL_FILL || fill === DISABLED_EMPTY_ORIGINAL_FILL;
+      });
+    }
     // 1:1 by position: spots[i] ↔ spotLayers[i]
     spotLayers.forEach((el, i) => {
       const spot = spots[i];

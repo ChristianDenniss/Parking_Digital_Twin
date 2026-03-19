@@ -34,6 +34,31 @@ export function LotDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Keep the heat map live: simulator flips statuses every 5s on the backend.
+  // Poll the spot list so the UI updates even if the user never clicks a stall.
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+
+    const poll = () => {
+      api
+        .get<ParkingSpot[]>(`/api/parking-lots/${id}/spots`)
+        .then((spotsData) => {
+          if (!cancelled) setSpots(spotsData);
+        })
+        .catch((e) => {
+          if (!cancelled) setError(e instanceof Error ? e.message : "Failed to refresh spots");
+        });
+    };
+
+    poll();
+    const interval = window.setInterval(poll, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [id]);
+
   // Load lot SVG from src/images/svgs/{lot.name}.svg (e.g. TimedParking1.svg)
   useEffect(() => {
     if (!lot?.name) {

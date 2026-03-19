@@ -16,14 +16,36 @@ const LOT_SVGS_DIR = path.join(__dirname, "../../FE/src/images/svgs");
 
 /** Spot layer = has data-spot-label and label does not contain "BG". Returns labels in document order (1:1 with SVG layers). */
 function parseSpotLayersFromSvg(svgContent: string): string[] {
-  const re = /data-spot-label="([^"]+)"/g;
+  // Primary format: data-spot-label="A-001"
+  // Fallback format (some uploaded SVGs): id="A-001"
+  const re = /(?:data-spot-label|id)="([^"]+)"/g;
   const labels: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(svgContent)) !== null) {
     const label = m[1].trim();
-    if (label && !/BG/i.test(label)) labels.push(label);
+    if (!label || /BG/i.test(label)) continue;
+    if (!/^[A-Za-z]+-\d+$/i.test(label)) continue;
+    labels.push(label);
   }
   return labels;
+}
+
+const SVG_ENABLED_FILL = "#84CE8F";
+const SVG_DISABLED_FILL = "#A5CEDC";
+function parseSpotOrderFromSvgByFill(svgContent: string): boolean[] {
+  // Returns stall order as they appear in the SVG file.
+  // - true  => disabled stall (blue)
+  // - false => enabled stall (green)
+  // This is a fallback for SVGs that don't include `data-spot-label`.
+  const re = /<(rect|path)[^>]*fill="(#[0-9A-Fa-f]{6})"[^>]*>/g;
+  const disabledByOrder: boolean[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(svgContent)) !== null) {
+    const fill = m[2].toUpperCase();
+    if (fill === SVG_ENABLED_FILL.toUpperCase()) disabledByOrder.push(false);
+    else if (fill === SVG_DISABLED_FILL.toUpperCase()) disabledByOrder.push(true);
+  }
+  return disabledByOrder;
 }
 
 /** Image URLs to randomly assign to lots if image assign fails frontend display testing. */
@@ -114,10 +136,14 @@ async function seed() {
     // Only lots with an SVG in FE/src/images/svgs/{lotName}.svg get spots from the file; others use fallback.
     const svgPath = path.join(LOT_SVGS_DIR, `${lot.name}.svg`);
     let svgLabels: string[] = [];
+    let svgSpotOrderByFill: boolean[] = [];
     if (fs.existsSync(svgPath)) {
       try {
         const content = fs.readFileSync(svgPath, "utf-8");
         svgLabels = parseSpotLayersFromSvg(content);
+        if (svgLabels.length === 0) {
+          svgSpotOrderByFill = parseSpotOrderFromSvgByFill(content);
+        }
       } catch (err) {
         console.warn(`Could not parse SVG for ${lot.name}:`, err);
       }
@@ -155,6 +181,41 @@ async function seed() {
         lot.capacity = spots.length;
         await lotRepo.save(lot);
       }
+    } else if (svgSpotOrderByFill.length > 0) {
+      // Unlabeled SVG fallback: treat each enabled/disabled stall shape as one spot.
+      // We generate sequential slotIndex so the frontend can map by position.
+      // Also spread labels across rows (A, B, C...) instead of forcing every spot into row A.
+      // Label pattern becomes A-001, B-001, C-001 ... then A-002, B-002, ...
+      const rowCount = Math.max(1, Math.min(fallbackRows.length, svgSpotOrderByFill.length));
+      svgSpotOrderByFill.forEach((_isDisabled, n) => {
+        const rowLetter = fallbackRows[n % rowCount];
+        const idx = Math.floor(n / rowCount) + 1;
+        const status: "occupied" | "empty" =
+          occupiedCount !== null
+            ? n < occupiedCount
+              ? "occupied"
+              : "empty"
+            : Math.random() < 0.5
+              ? "occupied"
+              : "empty";
+        const rowAndNumber = `${rowLetter}-${String(idx).padStart(3, "0")}`;
+        spots.push(
+          spotRepo.create({
+            parkingLotId: lot.id,
+            label: `${lotPrefix}-${rowAndNumber}`,
+            section: rowLetter,
+            row: rowLetter,
+            index: idx,
+            slotIndex: n + 1,
+            currentStatus: status,
+          })
+        );
+      });
+      if (spots.length !== capacity) {
+        console.warn(`${lot.name}: SVG has ${spots.length} spots (by fill), config capacity ${capacity}. Updating lot capacity.`);
+        lot.capacity = spots.length;
+        await lotRepo.save(lot);
+      }
     } else {
       // No SVG for this lot: fallback split across A–J using config capacity
       const perRow = Math.ceil(capacity / fallbackRows.length);
@@ -176,7 +237,8 @@ async function seed() {
             section: rowLetter,
             row: rowLetter,
             index: rowIndex + 1,
-            slotIndex: null,
+            // Set slotIndex so frontend mapping-by-order works even for fallback-generated lots.
+            slotIndex: n + 1,
             currentStatus: status,
           })
         );
