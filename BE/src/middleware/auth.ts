@@ -9,6 +9,9 @@ export interface AuthUser {
   email: string;
   name: string | null;
   createdAt: Date;
+  role: "staff" | "student" | "phd_candidate";
+  resident: boolean;
+  disabled: boolean;
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -26,6 +29,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       email: user.email,
       name: user.name,
       createdAt: user.createdAt,
+      role: user.role,
+      resident: user.resident,
+      disabled: user.disabled,
     };
     next();
   } catch {

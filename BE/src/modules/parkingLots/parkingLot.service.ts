@@ -81,3 +81,61 @@ export async function findRecommendationsByBuilding(buildingId: string): Promise
   });
   return valid;
 }
+
+type SpotStatus = "occupied" | "empty";
+
+export async function recommendBestParking(params: {
+  buildingId: string;
+  stateMode: "current" | "predicted";
+  predictedFreeSpotsByLotId?: Record<string, number>;
+  predictedSpotStatusByLotId?: Record<string, Record<string, SpotStatus>>;
+}): Promise<{
+  lot: ParkingLot;
+  spot: ParkingSpot;
+  distanceMeters: number;
+  freeSpotsInSelectedLot: number;
+  evaluatedMode: "current" | "predicted";
+} | null> {
+  const rankedLots = await findRecommendationsByBuilding(params.buildingId);
+  if (rankedLots.length === 0) return null;
+
+  for (const ranked of rankedLots) {
+    const lotId = ranked.lot.id;
+    const spots = await spotRepo().find({
+      where: { parkingLotId: lotId },
+      order: { slotIndex: "ASC", section: "ASC", row: "ASC", index: "ASC" },
+    });
+    if (spots.length === 0) continue;
+
+    const predictedSpotStatuses = params.predictedSpotStatusByLotId?.[lotId];
+    const predictedLotFreeSpots = params.predictedFreeSpotsByLotId?.[lotId];
+
+    const isSpotEmpty = (spot: ParkingSpot): boolean => {
+      if (params.stateMode === "predicted" && predictedSpotStatuses?.[spot.id] != null) {
+        return predictedSpotStatuses[spot.id] === "empty";
+      }
+      return spot.currentStatus === "empty";
+    };
+
+    const candidateSpot = spots.find((s) => isSpotEmpty(s));
+    if (!candidateSpot) continue;
+
+    const computedFreeSpots = spots.reduce((count, s) => count + (isSpotEmpty(s) ? 1 : 0), 0);
+    const freeSpotsInSelectedLot =
+      params.stateMode === "predicted" && predictedLotFreeSpots != null
+        ? predictedLotFreeSpots
+        : computedFreeSpots;
+
+    if (freeSpotsInSelectedLot <= 0) continue;
+
+    return {
+      lot: ranked.lot,
+      spot: candidateSpot,
+      distanceMeters: ranked.distanceMeters,
+      freeSpotsInSelectedLot,
+      evaluatedMode: params.stateMode,
+    };
+  }
+
+  return null;
+}

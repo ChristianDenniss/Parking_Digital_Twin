@@ -2,7 +2,13 @@
 
 Digital twin for campus parking at UNB Saint John. Right now we’re on the MVP: simulated per-spot data (fake sensors), historical proxy data for training, plus students and classes so we can tie usage to schedules later.
 
-**BE** is in `BE/`, **FE** is in `FE/`. API and data shapes are in `BE/openapi.yaml`.
+**BE** is in `BE/`, **FE** is in `FE/`. API and data shapes are in `BE/openapi.yaml`. Design (Figma) and SVG export notes are in **`docs/figma.md`**.
+
+---
+
+## Lot maps (SVG heat maps)
+
+For lots that have an SVG in **`FE/src/images/svgs/{LotName}.svg`** (e.g. `TimedParking1.svg`), the seed reads spot layers from the file and creates one parking spot per layer (in order). Layers with `"BG"` in the name are ignored. Each spot layer should have **`data-spot-label`** (e.g. `A-001`, `B-002`). On the lot detail page, the SVG is shown as a heat map (green = free, red = taken) and each layer is clickable to toggle that spot. See `docs/figma.md` for the Figma design and export tips.
 
 ---
 
@@ -11,7 +17,7 @@ Digital twin for campus parking at UNB Saint John. Right now we’re on the MVP:
 ```bash
 cd BE
 npm install
-npm run seed    # 14 lots, 1,170 spots (SQLite), plus buildings and lot–building distances
+npm run seed    # 16 lots; originally believed to be 1,170 spots but recounted to 1,231 (BE/data/ParkingLotINFO.txt); spots from SVG where present else fallback; buildings and lot–building distances
 npm run build
 npm start
 ```

@@ -1,0 +1,36 @@
+<svg width="861" height="484" viewBox="0 0 861 484" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="ResidentParking2" clip-path="url(#clip0_7_2)">
+<rect width="861" height="484" fill="white"></rect>
+<rect id="grassBG" width="861" height="484" fill="#7E9E66"></rect>
+<rect id="Lot_PavementBG" x="69" y="34" width="712" height="413" fill="#D9D9D9"></rect>
+<rect id="Lot_PavementBG_2" x="267" y="413" width="594" height="71" fill="#D9D9D9"></rect>
+<path id="A-001" d="M93 81V43L213 43V81L93 81Z" fill="#A5CEDC"></path>
+<path id="A-002" d="M93 125.5V87.5H213V125.5L93 125.5Z" fill="#84CE8F"></path>
+<path id="A-003" d="M93 170V132H213V170H93Z" fill="#84CE8F"></path>
+<path id="A-004" d="M93 215V177H213V215H93Z" fill="#84CE8F"></path>
+<path id="A-005" d="M93 260V222H213V260L93 260Z" fill="#84CE8F"></path>
+<path id="A-006" d="M93 305V267H213V305H93Z" fill="#84CE8F"></path>
+<path id="A-007" d="M93 350V312H213V350H93Z" fill="#84CE8F"></path>
+<path id="A-008" d="M93 395V357H213V395H93Z" fill="#84CE8F"></path>
+<path id="A-009" d="M93 440V402H213V440H93Z" fill="#84CE8F"></path>
+<path id="B-001" d="M633 81V43L753 43V81L633 81Z" fill="#A5CEDC"></path>
+<path id="B-002" d="M633 125.5V87.5H753V125.5L633 125.5Z" fill="#84CE8F"></path>
+<path id="B-003" d="M633 170V132H753V170H633Z" fill="#84CE8F"></path>
+<path id="B-004" d="M633 215V177H753V215H633Z" fill="#84CE8F"></path>
+<path id="B-005" d="M633 260V222H753V260L633 260Z" fill="#84CE8F"></path>
+<path id="B-006" d="M633 305V267H753V305H633Z" fill="#84CE8F"></path>
+<path id="B-007" d="M633 350V312H753V350H633Z" fill="#84CE8F"></path>
+<path id="B-008" d="M633 395V357H753V395H633Z" fill="#84CE8F"></path>
+<path id="B-009" d="M633 440V402H753V440H633Z" fill="#84CE8F"></path>
+<path id="C-001" d="M379 166V128H499V166H379Z" fill="#84CE8F"></path>
+<path id="C-002" d="M379 224.5V186.5H499V224.5H379Z" fill="#84CE8F"></path>
+<path id="C-003" d="M379 283.5V245.5H499V283.5H379Z" fill="#84CE8F"></path>
+<path id="C-004" d="M379 342.5V304.5H499V342.5L379 342.5Z" fill="#84CE8F"></path>
+<path id="C-005" d="M379 401.5V363.5H499V401.5H379Z" fill="#84CE8F"></path>
+</g>
+<defs>
+<clipPath id="clip0_7_2">
+<rect width="861" height="484" fill="white"></rect>
+</clipPath>
+</defs>
+</svg>

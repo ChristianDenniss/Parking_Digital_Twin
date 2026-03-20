@@ -51,10 +51,23 @@ export function ParkingMap({
     (feature: GeoJsonObject, layer: Layer) => {
       const props = (feature as Feature).properties as Record<string, unknown> | undefined;
       const featureName = (props?.name as string) ?? "Section";
-      const lot = lots.find(
-        (l) => l.name === featureName || l.name.replace(/\s+/g, "") === featureName.replace(/\s+/g, "")
-      );
-      const displayName = lot ? lot.name : featureName;
+      // 1) Try strict match (including number) between section name and lot name.
+      // 2) As a fallback, only special-case PHDParking → PHDParking1 so we don't collapse other lots.
+      const normalize = (name: string) => name.replace(/\s+/g, "").toLowerCase();
+      const normFeature = normalize(featureName);
+      let lot =
+        lots.find((l) => normalize(l.name) === normFeature) ??
+        (normFeature === "phdparking"
+          ? lots.find((l) => normalize(l.name).startsWith("phdparking1"))
+          : undefined);
+      // Prettify the label a bit (e.g. "StaffParking1" -> "Staff Parking 1") but keep
+      // the original featureName (from GEE / backend) so numbering stays distinct.
+      const prettify = (name: string) =>
+        name
+          .replace(/([a-z])([A-Z])/g, "$1 $2")
+          .replace(/([A-Za-z])(\d+)/g, "$1 $2")
+          .trim();
+      const displayName = prettify(featureName);
       layer.bindTooltip(displayName, {
         permanent: false,
         direction: "top",

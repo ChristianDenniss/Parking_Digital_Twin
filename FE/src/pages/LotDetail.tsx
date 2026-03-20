@@ -3,8 +3,9 @@ import { useParams, Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { ParkingLot, ParkingSpot } from "../api/types";
 import { LotHeatMap } from "../components/LotHeatMap";
+import unbSjSymbolRed from "../images/UNBSymbolRed.png";
 
-/** SVGs in src/images/svgs/*.svg loaded by filename = {lot.name}.svg (e.g. TimedParking1.svg) */
+/** SVGs in src/images/svgs/*.svg loaded by filename = {lot.name}.svg. After adding new SVG files, restart the dev server (Vite glob is fixed at startup). */
 const lotSvgLoaders = import.meta.glob<string>("../images/svgs/*.svg", {
   query: "?raw",
   import: "default",
@@ -32,6 +33,31 @@ export function LotDetail() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  }, [id]);
+
+  // Keep the heat map live: simulator flips statuses every 5s on the backend.
+  // Poll the spot list so the UI updates even if the user never clicks a stall.
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+
+    const poll = () => {
+      api
+        .get<ParkingSpot[]>(`/api/parking-lots/${id}/spots`)
+        .then((spotsData) => {
+          if (!cancelled) setSpots(spotsData);
+        })
+        .catch((e) => {
+          if (!cancelled) setError(e instanceof Error ? e.message : "Failed to refresh spots");
+        });
+    };
+
+    poll();
+    const interval = window.setInterval(poll, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [id]);
 
   // Load lot SVG from src/images/svgs/{lot.name}.svg (e.g. TimedParking1.svg)
@@ -103,11 +129,7 @@ export function LotDetail() {
         <span className="rounded border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600">Parking Lot Capacity: {lot.capacity}</span>
       </div>
 
-      <section className="mb-8">
-        <h2 className="text-lg font-semibold text-slate-800 mb-2">Lot heat map</h2>
-        <p className="text-slate-500 text-sm mb-2">
-          Green = free, red = taken. Click a spot on the map to toggle (or use the list below).
-        </p>
+      <section className="mb-4">
         <LotHeatMap
           spots={spots}
           svgMarkup={svgMarkup}
@@ -118,35 +140,36 @@ export function LotDetail() {
       </section>
 
       {sections.length > 0 && (
-        <div className="mb-6">
-          <label className="block text-slate-500 text-sm mb-1">Section</label>
-          <select
-            value={section}
-            onChange={(e) => setSection(e.target.value)}
-            className="w-full max-w-xs px-3 py-2 rounded border border-slate-200 bg-white text-slate-800"
-          >
-            <option value="">All</option>
-            {sections.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+        <div className="mb-3">
+          <label className="block text-unb-red text-xs font-semibold mb-0.5 tracking-wide uppercase">Row</label>
+          <div className="flex items-center gap-2">
+            <select
+              value={section}
+              onChange={(e) => setSection(e.target.value)}
+              className="w-full max-w-[180px] px-2 py-1 rounded border border-unb-red/40 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-unb-red/30 focus:border-unb-red"
+            >
+              <option value="">All</option>
+              {sections.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <img src={unbSjSymbolRed} alt="" aria-hidden className="h-5 w-5 opacity-80" />
+          </div>
         </div>
       )}
 
-      <p className="text-slate-500 text-sm mb-4">
-        Click a spot to toggle occupied/empty (simulator also updates every 5s).
-      </p>
+      <p className="text-slate-500 text-sm mb-4">Live data updates every 5 seconds.</p>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-2">
         {spotsForList.map((spot) => (
           <button
             key={spot.id}
             type="button"
-            className={`rounded border px-2 py-1.5 text-sm font-medium ${
+            className={`rounded border px-2 py-1.5 text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis transition-colors ${
               spot.currentStatus === "occupied"
-                ? "border-red-200 bg-red-50 text-red-700"
-                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                ? "border-red-200 bg-red-50 text-red-700 hover:border-unb-red/60"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-unb-red/60"
             }`}
             onClick={() => toggleStatus(spot)}
             title={`${spot.label} — ${spot.currentStatus}`}

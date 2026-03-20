@@ -1,4 +1,5 @@
 import * as parkingSpotService from "./parkingSpots/parkingSpot.service";
+import { invalidateCache } from "../middleware/cache";
 
 const INTERVAL_MS = 5_000;
 const DEFAULT_OCCUPANCY_AVG = 0.6;
@@ -17,11 +18,20 @@ async function runTick() {
   const occupancyTarget =
     process.env.SIM_OCCUPANCY != null ? Number(process.env.SIM_OCCUPANCY) : DEFAULT_OCCUPANCY_AVG;
   const toFlip = Math.min(MAX_FLIPS_PER_TICK, Math.max(1, Math.floor(spots.length * FLIP_FRACTION)));
+  let didUpdate = false;
   for (let i = 0; i < toFlip; i++) {
     const spot = pickRandom(spots);
     const nextStatus: "occupied" | "empty" = Math.random() < occupancyTarget ? "occupied" : "empty";
     if (spot.currentStatus === nextStatus) continue;
     await parkingSpotService.updateStatus(spot.id, nextStatus);
+    didUpdate = true;
+  }
+
+  // Simulator updates spots directly (not via PATCH routes), so we must clear cached
+  // spot-lists for the UI to reflect changes without user interaction.
+  if (didUpdate) {
+    await invalidateCache("parking-lot-spots");
+    await invalidateCache("parking-spots");
   }
 }
 

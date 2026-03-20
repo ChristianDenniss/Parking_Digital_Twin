@@ -36,6 +36,14 @@ export async function findByUserId(userId: string): Promise<Student | null> {
   return repo().findOne({ where: { userId } });
 }
 
+/** Detach the student profile from this user (e.g. role changed to staff). */
+export async function clearUserLinkByUserId(userId: string): Promise<void> {
+  const s = await findByUserId(userId);
+  if (!s) return;
+  s.userId = null;
+  await repo().save(s);
+}
+
 export async function update(
   id: string,
   data: Partial<{ userId: string | null; studentId: string; email: string; name: string; year: number | null }>

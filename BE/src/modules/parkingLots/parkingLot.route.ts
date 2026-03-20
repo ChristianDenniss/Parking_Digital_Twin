@@ -4,6 +4,15 @@ import { cacheMiddleware, invalidateCacheMiddleware } from "../../middleware/cac
 
 const router = Router();
 
+router.post(
+  "/recommendation",
+  cacheMiddleware({
+    prefix: "parking-lots-recommendation",
+    ttlSeconds: 15,
+    key: (req) => `POST:/api/parking-lots/recommendation:${JSON.stringify(req.body ?? {})}`,
+  }),
+  controller.recommend
+);
 router.get("/", cacheMiddleware({ prefix: "parking-lots", ttlSeconds: 60 }), controller.list);
 router.get(
   "/:id",

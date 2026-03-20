@@ -43,6 +43,15 @@ export function Schedule() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<ScheduleEntry | null>(null);
   const [termFilter, setTermFilter] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<"profile" | "schedule">("profile");
+  const [profileName, setProfileName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profileRole, setProfileRole] = useState<"staff" | "student" | "phd_candidate">("student");
+  const [profileResident, setProfileResident] = useState(false);
+  const [profileDisabled, setProfileDisabled] = useState(false);
+  const [profileStudentId, setProfileStudentId] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
 
   // Load course catalog on mount so the add-class dropdown always has data
   useEffect(() => {
@@ -68,6 +77,16 @@ export function Schedule() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [token]);
+
+  useEffect(() => {
+    if (!me) return;
+    setProfileName(me.name ?? "");
+    setProfileEmail(me.email ?? "");
+    setProfileRole(me.role);
+    setProfileResident(me.resident);
+    setProfileDisabled(me.disabled);
+    setProfileStudentId(me.student?.studentId ?? "");
+  }, [me]);
 
   const terms = useMemo(() => {
     const set = new Set(courses.map((c) => c.term).filter(Boolean));
@@ -121,6 +140,35 @@ export function Schedule() {
     localStorage.removeItem(tokenKey);
     setToken(null);
     navigate("/");
+  };
+
+  const needsStudentIdForSave =
+    (profileRole === "student" || profileRole === "phd_candidate") && !me?.student;
+
+  const handleProfileSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !me) return;
+    setProfileMessage(null);
+    setProfileSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        name: profileName.trim(),
+        email: profileEmail.trim(),
+        role: profileRole,
+        resident: profileResident,
+        disabled: profileDisabled,
+      };
+      if (needsStudentIdForSave) {
+        body.studentId = profileStudentId.trim();
+      }
+      const updated = await api.patch<MeResponse>("/api/users/me", body, token);
+      setMe(updated);
+      setProfileMessage("Profile saved.");
+    } catch (err) {
+      setProfileMessage(err instanceof Error ? err.message : "Could not save profile");
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   const handleConfirmRemove = () => {
@@ -181,8 +229,8 @@ export function Schedule() {
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-        <h1 className="text-2xl font-bold text-slate-900">{displayName}'s Class Schedule</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <h1 className="text-2xl font-bold text-slate-900">My account</h1>
         <button
           type="button"
           onClick={handleLogout}
@@ -191,9 +239,154 @@ export function Schedule() {
           Log out
         </button>
       </div>
-      <p className="text-slate-600 text-sm mb-6">
-        Add classes by code below. Click the minus to remove a class.
+      <p className="text-slate-600 text-sm mb-4">
+        Hi, <span className="font-medium text-slate-800">{displayName}</span>. Update your profile or manage your class schedule.
       </p>
+
+      <div className="flex gap-2 border-b border-slate-200 mb-6">
+        <button
+          type="button"
+          onClick={() => setActiveTab("profile")}
+          className={`px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 -mb-px transition-colors ${
+            activeTab === "profile"
+              ? "border-unb-red text-unb-red bg-white"
+              : "border-transparent text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          Profile
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("schedule")}
+          className={`px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 -mb-px transition-colors ${
+            activeTab === "schedule"
+              ? "border-unb-red text-unb-red bg-white"
+              : "border-transparent text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          Class schedule
+        </button>
+      </div>
+
+      {activeTab === "profile" && (
+        <div className="rounded-xl border-2 border-unb-red/30 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900 mb-1">Profile & parking</h2>
+          <p className="text-slate-600 text-sm mb-6">
+            These details are used to recommend parking you&apos;re eligible for. Password cannot be changed here yet.
+          </p>
+          <form onSubmit={handleProfileSave} className="space-y-4 max-w-lg">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+              <input
+                type="text"
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+                required
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-unb-red focus:border-unb-red"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={profileEmail}
+                onChange={(e) => setProfileEmail(e.target.value)}
+                required
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-unb-red focus:border-unb-red"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+              <select
+                value={profileRole}
+                onChange={(e) =>
+                  setProfileRole(e.target.value as "staff" | "student" | "phd_candidate")
+                }
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-unb-red focus:border-unb-red"
+              >
+                <option value="student">Student</option>
+                <option value="staff">Staff</option>
+                <option value="phd_candidate">PhD candidate</option>
+              </select>
+            </div>
+            {needsStudentIdForSave && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Student ID</label>
+                <input
+                  type="text"
+                  value={profileStudentId}
+                  onChange={(e) => setProfileStudentId(e.target.value)}
+                  placeholder="Required to link your student profile"
+                  required
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-unb-red focus:border-unb-red"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Required for Student or PhD candidate when no student profile is linked yet.
+                </p>
+              </div>
+            )}
+            {me?.student && (
+              <p className="text-sm text-slate-600">
+                Linked student ID:{" "}
+                <span className="font-mono font-medium text-slate-800">{me.student.studentId}</span>
+                {" "}(contact admin to change)
+              </p>
+            )}
+            <div className="space-y-2 pt-1">
+              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={profileResident}
+                  onChange={(e) => setProfileResident(e.target.checked)}
+                  className="rounded border-slate-300 text-unb-red focus:ring-unb-red"
+                />
+                I live in UNBSJ campus residence
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={profileDisabled}
+                  onChange={(e) => setProfileDisabled(e.target.checked)}
+                  className="rounded border-slate-300 text-unb-red focus:ring-unb-red"
+                />
+                I need an accessible / disabled parking stall
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={profileSaving}
+                className="px-4 py-2 rounded-lg bg-unb-red text-white font-semibold hover:bg-unb-red-dark disabled:opacity-60"
+              >
+                {profileSaving ? "Saving…" : "Save profile"}
+              </button>
+              {profileMessage && (
+                <span
+                  className={
+                    profileMessage.startsWith("Profile saved")
+                      ? "text-sm text-emerald-700"
+                      : "text-sm text-red-600"
+                  }
+                >
+                  {profileMessage}
+                </span>
+              )}
+            </div>
+          </form>
+        </div>
+      )}
+
+      {activeTab === "schedule" && (
+        <>
+          {!me?.student && (
+            <p className="mb-4 text-amber-900 text-sm bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Class schedules are tied to a student profile. If you&apos;re a student or PhD candidate, use{" "}
+              <strong>Profile</strong> to set your role and Student ID, then return here to add classes.
+            </p>
+          )}
+          <p className="text-slate-600 text-sm mb-6">
+            Add classes by code below. Click the minus to remove a class.
+          </p>
 
       <div className="space-y-3">
         {schedule.map((entry) => {
@@ -401,6 +594,8 @@ export function Schedule() {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
