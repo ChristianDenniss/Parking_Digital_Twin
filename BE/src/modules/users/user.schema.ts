@@ -38,7 +38,7 @@ export const updateUserSchema = z
   })
   .strict();
 
-/** Authenticated user profile update — no password. */
+/** Authenticated user profile update; no password. */
 export const patchMeSchema = z
   .object({
     name: z.string().min(1, { message: "Name cannot be empty" }).trim().optional(),

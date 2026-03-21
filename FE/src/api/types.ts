@@ -60,7 +60,7 @@ export interface PublicUser {
   name: string | null;
   createdAt: string;
   role: "staff" | "student" | "phd_candidate";
-  /** On-campus resident — resident parking eligibility */
+  /** On-campus resident; resident parking eligibility */
   resident: boolean;
   /** Accessible / disabled parking stall eligibility */
   disabled: boolean;
@@ -181,7 +181,7 @@ export type DayArrivalSegment =
 
 export interface DayArrivalPlanResponse {
   selectedDate: string;
-  /** Catalog term codes used for this plan (e.g. Winter 2026 → `2026/WI`). */
+  /** Catalog term codes used for this plan (e.g. Winter 2026 as `2026/WI`). */
   includedTermCodes: string[];
   scheduleNote: string;
   gapMinutesAssumeLeftCampus: number;

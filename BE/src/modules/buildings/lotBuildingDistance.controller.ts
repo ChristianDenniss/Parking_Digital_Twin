@@ -9,7 +9,7 @@ export async function list(req: Request, res: Response) {
       parkingLotId.trim(),
       buildingId.trim()
     );
-    if (!one) return res.status(404).json({ error: "Lot–building distance not found" });
+    if (!one) return res.status(404).json({ error: "Lot-building distance not found" });
     return res.json(one);
   }
   const rows = await lotBuildingDistanceService.findAll({
@@ -61,7 +61,7 @@ export async function update(req: Request, res: Response) {
   const row = await lotBuildingDistanceService.update(parkingLotId, buildingId, {
     distanceMeters: num,
   });
-  if (!row) return res.status(404).json({ error: "Lot–building distance not found" });
+  if (!row) return res.status(404).json({ error: "Lot-building distance not found" });
   res.json(row);
 }
 
@@ -72,6 +72,6 @@ export async function remove(req: Request, res: Response) {
     return res.status(400).json({ error: "parkingLotId and buildingId query params are required" });
   }
   const row = await lotBuildingDistanceService.remove(parkingLotId, buildingId);
-  if (!row) return res.status(404).json({ error: "Lot–building distance not found" });
+  if (!row) return res.status(404).json({ error: "Lot-building distance not found" });
   res.status(204).send();
 }

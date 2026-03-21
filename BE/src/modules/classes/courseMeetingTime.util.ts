@@ -1,6 +1,6 @@
 /**
  * Detects placeholder or broken meeting times from scraped catalog data
- * (e.g. PhD thesis STAT6998 as 00:00–23:59, or 0:00–0:00).
+ * (e.g. PhD thesis STAT6998 as 00:00-23:59, or 0:00-0:00).
  * Used for parking recommendations and schedule "feedback" API output.
  */
 
@@ -30,7 +30,7 @@ function toMinutesSinceMidnight(clock: string): number | null {
 
 /**
  * True when start/end look like a normal same-day class block for parking / UI lists.
- * Excludes identical times, 00:00–23:59 placeholders, and extremely long single blocks.
+ * Excludes identical times, 00:00-23:59 placeholders, and extremely long single blocks.
  */
 export function hasPlausibleMeetingTimes(
   startTime: string | null | undefined,

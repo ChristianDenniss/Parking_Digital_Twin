@@ -114,7 +114,7 @@ function DayParkingPlanCard(props: {
           </p>
           <p className="text-sm text-slate-600">
             {c.classCode}
-            {c.courseName ? ` — ${c.courseName}` : ""} starts at {formatLocalTime(c.startsAt)}.
+            {c.courseName ? ` - ${c.courseName}` : ""} starts at {formatLocalTime(c.startsAt)}.
           </p>
         </li>
       );
@@ -130,8 +130,8 @@ function DayParkingPlanCard(props: {
             <span className="font-medium">{seg.previousClass.classCode}</span> (ends ~{" "}
             {formatLocalTime(seg.previousEndsAt)}) and{" "}
             <span className="font-medium">{seg.nextClass.classCode}</span> (starts{" "}
-            {formatLocalTime(seg.nextStartsAt)}). Gap ≈ {seg.gapMinutes} minutes — under{" "}
-            {plan?.gapMinutesAssumeLeftCampus ?? 60} minutes, so no new parking stop is assumed.
+            {formatLocalTime(seg.nextStartsAt)}). Gap ≈ {seg.gapMinutes} minutes; under{" "}
+            {plan?.gapMinutesAssumeLeftCampus ?? 60} minutes, so no new parking actions are assumed.
           </p>
         </li>
       );
@@ -158,7 +158,7 @@ function DayParkingPlanCard(props: {
         </p>
         <p className="text-sm text-slate-600">
           {c.classCode}
-          {c.courseName ? ` — ${c.courseName}` : ""} starts at {formatLocalTime(c.startsAt)}.
+          {c.courseName ? ` - ${c.courseName}` : ""} starts at {formatLocalTime(c.startsAt)}.
         </p>
       </li>
     );

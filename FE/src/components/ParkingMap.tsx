@@ -11,7 +11,7 @@ const MIN_ZOOM = 17;
 const MAX_ZOOM = 22;
 const DEFAULT_ZOOM = 17;
 
-/** Bounds: tighter north–south (less vertical scroll), same horizontal. */
+/** Bounds: tighter north-south (less vertical scroll), same horizontal. */
 const MAX_BOUNDS: [[number, number], [number, number]] = [
   [45.303, -66.092], // southwest
   [45.31, -66.079],  // northeast

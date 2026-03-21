@@ -393,7 +393,7 @@ export async function getArrivalRecommendationForUser(
     includedTermCodes,
     scheduleNote:
       `Only classes in term code(s) ${includedTermCodes.join(", ")} are included (default ${DEFAULT_ARRIVAL_PLAN_TERM_CODE} = Winter 2026). ` +
-      "Courses with placeholder meeting times (e.g. 00:00–00:00, 00:00–23:59, or blocks over 14 hours) are excluded. " +
+      "Courses with placeholder meeting times (e.g. 00:00-00:00, 00:00-23:59, or blocks over 14 hours) are excluded. " +
       "Day-of-week is not stored on class schedule entries yet; matching classes are treated as if they run on this day. Classes are ordered by start time.",
     gapMinutesAssumeLeftCampus: gapThreshold,
     segments,

@@ -21,11 +21,11 @@ export class User {
   @Column({ type: "text", nullable: true })
   name!: string | null;
 
-  /** Staff, student, or PhD candidate — used to filter eligible parking (e.g. staff, PhD, resident, general). */
+  /** Staff, student, or PhD candidate; used to filter eligible parking (e.g. staff, PhD, resident, general). */
   @Column({ type: "text", default: "student" })
   role!: "staff" | "student" | "phd_candidate";
 
-  /** On-campus resident — eligible for resident parking lots. */
+  /** On-campus resident; eligible for resident parking lots. */
   @Column({ type: "boolean", default: false })
   resident!: boolean;
 

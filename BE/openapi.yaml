@@ -4,7 +4,7 @@ info:
   description: >
     Backend API for the UNB Saint John campus parking lot digital twin (MVP).
     Includes user profiles (role, resident, accessible parking), JWT auth, class schedule,
-    lot–building distances, and parking recommendation.
+    lot-building distances, and parking recommendation.
   version: 0.2.0
 
 servers:
@@ -31,7 +31,7 @@ tags:
   - name: Class schedule
     description: Class schedule entries (enrollments).
   - name: Buildings
-    description: Campus buildings and lot–building walking distances.
+    description: Campus buildings and lot-building walking distances.
   - name: Users
     description: API users and auth-related endpoints.
   - name: Auth
@@ -680,7 +680,7 @@ paths:
     get:
       tags:
         - Buildings
-      summary: List lot–building distances (or get one by lot and building)
+      summary: List lot-building distances (or get one by lot and building)
       operationId: listLotBuildingDistances
       parameters:
         - name: parkingLotId
@@ -697,7 +697,7 @@ paths:
             format: uuid
       responses:
         "200":
-          description: List of lot–building distances (or single object when both query params provided). May include parkingLot and building relations.
+          description: List of lot-building distances (or single object when both query params provided). May include parkingLot and building relations.
           content:
             application/json:
               schema:
@@ -715,7 +715,7 @@ paths:
     post:
       tags:
         - Buildings
-      summary: Create a lot–building distance
+      summary: Create a lot-building distance
       operationId: createLotBuildingDistance
       requestBody:
         required: true
@@ -741,7 +741,7 @@ paths:
     patch:
       tags:
         - Buildings
-      summary: Update a lot–building distance (by lot and building)
+      summary: Update a lot-building distance (by lot and building)
       operationId: updateLotBuildingDistance
       parameters:
         - name: parkingLotId
@@ -775,7 +775,7 @@ paths:
     delete:
       tags:
         - Buildings
-      summary: Remove a lot–building distance
+      summary: Remove a lot-building distance
       operationId: deleteLotBuildingDistance
       parameters:
         - name: parkingLotId
@@ -1047,7 +1047,7 @@ paths:
         - Users
       summary: Get class schedule for current user's student
       description: >
-        Omits entries whose course has placeholder meeting times (e.g. 00:00–00:00, 00:00–23:59, or a single block
+        Omits entries whose course has placeholder meeting times (e.g. 00:00-00:00, 00:00-23:59, or a single block
         longer than 14 hours) so thesis/independent-study placeholders do not appear in the app UI.
       operationId: getMySchedule
       security:

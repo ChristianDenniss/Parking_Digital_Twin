@@ -172,7 +172,7 @@ export function LotDetail() {
                 : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-unb-red/60"
             }`}
             onClick={() => toggleStatus(spot)}
-            title={`${spot.label} — ${spot.currentStatus}`}
+            title={`${spot.label} - ${spot.currentStatus}`}
           >
             {spot.label}
           </button>

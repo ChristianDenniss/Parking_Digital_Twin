@@ -30,7 +30,7 @@ export async function findById(id: string): Promise<ParkingSpot | null> {
 
 /**
  * Update spot status (taken/freed). Every status change automatically creates
- * a row in the parking_spot_readings (logs) table—no separate call needed.
+ * a row in the parking_spot_readings (logs) table; no separate call needed.
  */
 export async function updateStatus(id: string, status: "occupied" | "empty"): Promise<ParkingSpot | null> {
   const spot = await spotRepo().findOne({ where: { id } });

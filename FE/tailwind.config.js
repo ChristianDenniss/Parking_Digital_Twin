@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        // University of New Brunswick brand (unb.ca) — UNBSJ red (darker than primary #D22B43)
+        // University of New Brunswick brand (unb.ca); UNBSJ red (darker than primary #D22B43)
         unb: {
           red: "#9E1E32",
           "red-dark": "#7E1828",

@@ -51,7 +51,7 @@ const SECTION_LOT_NAMES = [
   "ResidentParking3",
 ] as const;
 
-/** Result of FeatureCollection.getInfo – features with geometry and properties. */
+/** Result of FeatureCollection.getInfo: features with geometry and properties. */
 interface FeatureCollectionInfo {
   features?: Array<{
     type?: string;

@@ -82,7 +82,7 @@ async function seed() {
   // 16 lots (names match GEE features).
   // capacity here is a fallback / initial value:
   // - if an SVG exists in FE/src/images/svgs/{LotName}.svg, the real capacity and spots come from the SVG (one spot per data-spot-label).
-  // - if no SVG exists, capacity is used to generate fallback A–J rows.
+  // - if no SVG exists, capacity is used to generate fallback A-J rows.
   const lotsConfig: readonly { name: string; capacity: number }[] = [
     { name: "StaffParking1", capacity: 148 },
     { name: "GeneralParking1", capacity: 119 },
@@ -217,7 +217,7 @@ async function seed() {
         await lotRepo.save(lot);
       }
     } else {
-      // No SVG for this lot: fallback split across A–J using config capacity
+      // No SVG for this lot: fallback split across A-J using config capacity
       const perRow = Math.ceil(capacity / fallbackRows.length);
       for (let n = 0; n < capacity; n++) {
         const rowIndex = n % perRow;
@@ -250,7 +250,7 @@ async function seed() {
     totalSpots += spots.length;
   }
 
-  // Buildings and lot–building distances (for "where to park" optimization)
+  // Buildings and lot-building distances (for "where to park" optimization)
   const buildingRepo = AppDataSource.getRepository(Building);
   const distanceRepo = AppDataSource.getRepository(LotBuildingDistance);
   let buildings: Building[] = [];
@@ -290,7 +290,7 @@ async function seed() {
         await distanceRepo.save(d);
       }
     }
-    console.log(`Seeded lot–building distances (${lots.length} lots × ${buildings.length} buildings).`);
+    console.log(`Seeded lot-building distances (${lots.length} lots x ${buildings.length} buildings).`);
   }
 
   console.log(`Seeded ${lots.length} parking lots and ${totalSpots} parking spots.`);

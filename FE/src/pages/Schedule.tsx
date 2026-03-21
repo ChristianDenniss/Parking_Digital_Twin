@@ -487,7 +487,7 @@ export function Schedule() {
                   )}
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-sm text-slate-600">
-                  <span>{c?.startTime} – {c?.endTime}</span>
+                  <span>{c?.startTime} - {c?.endTime}</span>
                   {(c?.enrolled != null && c?.capacity != null) ? (
                     <span>{c.enrolled} / {c.capacity} enrolled</span>
                   ) : (
@@ -599,7 +599,7 @@ export function Schedule() {
                         )}
                         {(course.enrolled != null || course.capacity != null) && (
                           <div className="text-slate-500 text-xs mt-0.5">
-                            {course.startTime}–{course.endTime}
+                            {course.startTime}-{course.endTime}
                             {course.enrolled != null && course.capacity != null && (
                               <> · {course.enrolled}/{course.capacity} enrolled</>
                             )}

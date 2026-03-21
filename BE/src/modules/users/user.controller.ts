@@ -19,7 +19,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
  * Shorter expiry = less risk if a token is stolen; longer = fewer re-logins for demos/school projects.
  */
 function jwtExpiresIn(): string | number {
-  const fallbackSeconds = 30 * 24 * 60 * 60; // 30 days default (was 7d — felt too aggressive for occasional use)
+  const fallbackSeconds = 30 * 24 * 60 * 60; // 30 days default (was 7d; felt too aggressive for occasional use)
   const raw = process.env.JWT_EXPIRES_IN?.trim();
   if (!raw) return fallbackSeconds;
   const n = Number(raw);

@@ -97,8 +97,8 @@ export function Lots() {
             onChange={(e) => setSort(e.target.value as SortOption)}
             className="rounded border border-slate-200 bg-white px-3 py-1.5 text-slate-800 text-sm"
           >
-            <option value="name-asc">Name A–Z</option>
-            <option value="name-desc">Name Z–A</option>
+            <option value="name-asc">Name A-Z</option>
+            <option value="name-desc">Name Z-A</option>
             <option value="capacity-desc">Capacity (high first)</option>
             <option value="capacity-asc">Capacity (low first)</option>
           </select>

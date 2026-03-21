@@ -15,7 +15,7 @@ export function Api() {
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-slate-900">API</h1>
         <p className="text-slate-600 text-sm mt-1">
-          UNB Parking Digital Twin — OpenAPI 3.0 spec in Swagger UI format.
+          UNB Parking Digital Twin - OpenAPI 3.0 spec in Swagger UI format.
         </p>
       </div>
       <div className="rounded-lg border border-slate-200 bg-white overflow-hidden [&_.swagger-ui]:font-sans">
