@@ -995,6 +995,51 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/users/me/arrival-recommendation:
+    get:
+      tags:
+        - Users
+      summary: Full-day parking plan for a calendar date
+      description: >
+        For the given local calendar `date`, treats all enrolled classes as meeting that day (until weekdays exist
+        on schedule rows). Classes are sorted by start time. The first segment recommends when to arrive and where to
+        park for the first class. Between consecutive classes, if the gap from the previous class end to the next
+        start is greater than 60 minutes, a return-and-park segment recommends a fresh lot/spot and arrival time for
+        the next class (assumes you left campus). Otherwise a stay-on-campus segment is emitted.
+      operationId: getMyArrivalRecommendation
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+            example: "2026-03-19"
+          description: Local calendar day (YYYY-MM-DD).
+      responses:
+        "200":
+          description: Ordered segments for the day (initial arrival, then stay or return between classes)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DayArrivalPlanResponse"
+        "400":
+          description: Missing or invalid date query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Not authenticated
+        "404":
+          description: No student profile, no suitable classes that day, unmatched building, or no parking recommendation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/users/me/schedule:
     get:
       tags:
@@ -1244,6 +1289,162 @@ components:
           description: >
             Required when your role is student or PhD candidate and no student profile is linked yet
             (e.g. after switching from staff).
+
+    ArrivalClassSummary:
+      type: object
+      properties:
+        classIndex:
+          type: integer
+          description: 1-based position among classes that day
+        scheduleEntryId:
+          type: string
+          format: uuid
+        classId:
+          type: string
+          format: uuid
+        classCode:
+          type: string
+        courseName:
+          type: string
+          nullable: true
+        building:
+          type: string
+          nullable: true
+        room:
+          type: string
+          nullable: true
+        inferredFloor:
+          type: integer
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+
+    ArrivalParkingBlock:
+      type: object
+      properties:
+        building:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            code:
+              type: string
+              nullable: true
+        parking:
+          type: object
+          properties:
+            lot:
+              $ref: "#/components/schemas/ParkingLot"
+            spot:
+              $ref: "#/components/schemas/ParkingSpot"
+            distanceMeters:
+              type: number
+            freeSpotsInSelectedLot:
+              type: integer
+            occupancyPercent:
+              type: integer
+        timing:
+          type: object
+          properties:
+            walkMinutesFromLotToBuilding:
+              type: integer
+            inBuildingNavigationMinutes:
+              type: integer
+            lotCongestionBufferMinutes:
+              type: integer
+            prepBufferMinutes:
+              type: integer
+            totalTravelMinutes:
+              type: integer
+            recommendedArriveBy:
+              type: string
+              format: date-time
+
+    DayArrivalSegment:
+      oneOf:
+        - allOf:
+            - type: object
+              required: [type, targetClass, building, parking, timing]
+              properties:
+                type:
+                  type: string
+                  enum: [initial_arrival]
+                targetClass:
+                  $ref: "#/components/schemas/ArrivalClassSummary"
+            - $ref: "#/components/schemas/ArrivalParkingBlock"
+        - type: object
+          required:
+            - type
+            - gapMinutes
+            - previousClass
+            - nextClass
+            - previousEndsAt
+            - nextStartsAt
+          properties:
+            type:
+              type: string
+              enum: [stay_on_campus]
+            gapMinutes:
+              type: integer
+            previousClass:
+              $ref: "#/components/schemas/ArrivalClassSummary"
+            nextClass:
+              $ref: "#/components/schemas/ArrivalClassSummary"
+            previousEndsAt:
+              type: string
+              format: date-time
+            nextStartsAt:
+              type: string
+              format: date-time
+        - allOf:
+            - type: object
+              required: [type, gapAfterPreviousClassMinutes, targetClass, building, parking, timing]
+              properties:
+                type:
+                  type: string
+                  enum: [return_and_park]
+                gapAfterPreviousClassMinutes:
+                  type: integer
+                targetClass:
+                  $ref: "#/components/schemas/ArrivalClassSummary"
+            - $ref: "#/components/schemas/ArrivalParkingBlock"
+
+    DayArrivalPlanResponse:
+      type: object
+      required:
+        - selectedDate
+        - scheduleNote
+        - gapMinutesAssumeLeftCampus
+        - segments
+        - assumptions
+      properties:
+        selectedDate:
+          type: string
+          example: "2026-03-19"
+        scheduleNote:
+          type: string
+        gapMinutesAssumeLeftCampus:
+          type: integer
+          description: Gaps longer than this (previous class end → next start) trigger return-and-park
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayArrivalSegment"
+        assumptions:
+          type: object
+          properties:
+            walkMetersPerMinute:
+              type: number
+            minutesPerFloor:
+              type: number
+            congestionModel:
+              type: string
 
     UpdateUser:
       type: object

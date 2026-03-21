@@ -1,21 +1,29 @@
 import { Request, Response } from "express";
 import * as jwt from "jsonwebtoken";
+import type { SignOptions } from "jsonwebtoken";
 import * as userService from "./user.service";
 import * as studentService from "../students/student.service";
 import * as classScheduleService from "../classSchedule/classSchedule.service";
+import * as arrivalRecommendationService from "../arrival/arrivalRecommendation.service";
 import { createUserSchema, loginSchema, patchMeSchema, updateUserSchema } from "./user.schema";
 import type { AuthUser } from "../../middleware/auth";
 import { validate } from "../../utils/validate";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
 
-/** Seconds until JWT expiry. `JWT_EXPIRES_IN` must be a positive number (seconds). Non-numeric values (e.g. "7d") are ignored. */
-function jwtExpiresInSeconds(): number {
-  const fallback = 7 * 24 * 60 * 60;
-  const raw = process.env.JWT_EXPIRES_IN;
-  if (raw == null || raw === "") return fallback;
+/**
+ * JWT lifetime for login/register tokens.
+ * - Set `JWT_EXPIRES_IN` to seconds as a number (e.g. `2592000` for 30 days), or
+ * - a string that `jsonwebtoken` accepts (e.g. `30d`, `12h`, `90d`).
+ * Shorter expiry = less risk if a token is stolen; longer = fewer re-logins for demos/school projects.
+ */
+function jwtExpiresIn(): string | number {
+  const fallbackSeconds = 30 * 24 * 60 * 60; // 30 days default (was 7d — felt too aggressive for occasional use)
+  const raw = process.env.JWT_EXPIRES_IN?.trim();
+  if (!raw) return fallbackSeconds;
   const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
+  if (Number.isFinite(n) && n > 0) return n;
+  return raw;
 }
 
 function toPublicUser(user: {
@@ -63,7 +71,7 @@ export async function register(req: Request, res: Response) {
     });
   }
   const token = jwt.sign({ sub: user.id }, JWT_SECRET, {
-    expiresIn: jwtExpiresInSeconds(),
+    expiresIn: jwtExpiresIn() as SignOptions["expiresIn"],
   });
   res.status(201).json({ user: toPublicUser(user), token });
 }
@@ -79,7 +87,7 @@ export async function login(req: Request, res: Response) {
   if (!ok) return res.status(401).json({ error: "Invalid email or password" });
 
   const token = jwt.sign({ sub: user.id }, JWT_SECRET, {
-    expiresIn: jwtExpiresInSeconds(),
+    expiresIn: jwtExpiresIn() as SignOptions["expiresIn"],
   });
   res.json({ user: toPublicUser(user), token });
 }
@@ -182,6 +190,34 @@ export async function patchMe(req: Request, res: Response) {
         }
       : null,
   });
+}
+
+export async function myArrivalRecommendation(req: Request, res: Response) {
+  const user = (req as Request & { user?: AuthUser }).user;
+  if (!user) return res.status(401).json({ error: "Not authenticated" });
+
+  const dateRaw = req.query.date;
+  const dateStr = typeof dateRaw === "string" ? dateRaw.trim() : "";
+  if (!dateStr) {
+    return res.status(400).json({
+      error: "Query parameter `date` is required (YYYY-MM-DD, local calendar day).",
+    });
+  }
+  const selectedDate = arrivalRecommendationService.parseLocalDateFromYyyyMmDd(dateStr);
+  if (!selectedDate) {
+    return res.status(400).json({ error: "Invalid `date`. Use YYYY-MM-DD." });
+  }
+
+  const result = await arrivalRecommendationService.getArrivalRecommendationForUser(user.id, {
+    selectedDate,
+  });
+  if (!result) {
+    return res.status(404).json({
+      error:
+        "Could not build a recommendation. You may need a linked student profile, at least one scheduled class with a building and valid start time, a matching campus building, and an available parking lot.",
+    });
+  }
+  res.json(result);
 }
 
 export async function mySchedule(req: Request, res: Response) {

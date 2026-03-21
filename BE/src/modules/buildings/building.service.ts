@@ -42,3 +42,40 @@ export async function remove(id: string): Promise<Building | null> {
   await repo().remove(b);
   return b;
 }
+
+/**
+ * Match a course `building` string (e.g. "Hazen Hall") to a campus building row.
+ * Handles shortened names vs full names (e.g. "Hazen Hall" → "Sir Douglas Hazen Hall").
+ */
+export async function findBuildingForCourseBuilding(courseBuilding: string | null | undefined): Promise<Building | null> {
+  const raw = courseBuilding?.trim();
+  if (!raw) return null;
+  const q = raw.toLowerCase();
+  const all = await findAll();
+
+  const exact = all.find(
+    (b) => b.name.toLowerCase() === q || (b.code != null && b.code.toLowerCase() === q)
+  );
+  if (exact) return exact;
+
+  const contains = all.find(
+    (b) =>
+      b.name.toLowerCase().includes(q) ||
+      q.includes(b.name.toLowerCase())
+  );
+  if (contains) return contains;
+
+  const tokens = q.split(/\s+/).filter((t) => t.length > 2);
+  if (tokens.length === 0) return null;
+
+  let best: { b: Building; score: number } | null = null;
+  for (const b of all) {
+    const n = b.name.toLowerCase();
+    let score = 0;
+    for (const t of tokens) {
+      if (n.includes(t)) score += t.length;
+    }
+    if (score > 0 && (!best || score > best.score)) best = { b, score };
+  }
+  return best?.b ?? null;
+}

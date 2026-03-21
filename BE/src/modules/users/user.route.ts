@@ -7,6 +7,7 @@ const router = Router();
 
 router.get("/me", requireAuth, controller.me);
 router.patch("/me", requireAuth, asyncHandler(controller.patchMe));
+router.get("/me/arrival-recommendation", requireAuth, asyncHandler(controller.myArrivalRecommendation));
 router.get("/me/schedule", requireAuth, controller.mySchedule);
 router.get("/", controller.list);
 router.get("/:id", controller.getById);
