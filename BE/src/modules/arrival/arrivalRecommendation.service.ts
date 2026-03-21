@@ -6,6 +6,7 @@ import * as studentService from "../students/student.service";
 import * as classScheduleService from "../classSchedule/classSchedule.service";
 import * as buildingService from "../buildings/building.service";
 import * as parkingLotService from "../parkingLots/parkingLot.service";
+import { hasPlausibleMeetingTimes } from "../classes/courseMeetingTime.util";
 
 /** Walking speed assumption (meters per minute) ~4.8 km/h */
 export const DEFAULT_WALK_METERS_PER_MINUTE = 80;
@@ -25,7 +26,38 @@ export const CONGESTION_OCCUPANCY_SCALE = 0.12; // ~12 min at 100% full
  */
 export const GAP_MINUTES_ASSUME_LEFT_CAMPUS = 60;
 
+/**
+ * Only schedule rows whose course `term` matches one of these codes are used for parking plans.
+ * Default matches scraped UNB catalog: Winter 2026 → `2026/WI`.
+ * Override with `ARRIVAL_PLAN_TERM` (single code) or `ARRIVAL_PLAN_TERM_CODES` (comma-separated).
+ */
+export const DEFAULT_ARRIVAL_PLAN_TERM_CODE = "2026/WI";
+
 const DEFAULT_CLASS_DURATION_MS = 50 * 60 * 1000;
+
+function normalizeTermCode(s: string): string {
+  return s.trim().toUpperCase();
+}
+
+/** Term codes to include in arrival / day parking recommendations (normalized matching). */
+export function getArrivalPlanTermCodes(): string[] {
+  const multi = process.env.ARRIVAL_PLAN_TERM_CODES?.trim();
+  if (multi) {
+    return multi
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+  const single = process.env.ARRIVAL_PLAN_TERM?.trim();
+  if (single) return [single];
+  return [DEFAULT_ARRIVAL_PLAN_TERM_CODE];
+}
+
+function courseMatchesArrivalTermFilter(course: Course, allowedNormalized: ReadonlySet<string>): boolean {
+  const t = course.term?.trim();
+  if (!t) return false;
+  return allowedNormalized.has(normalizeTermCode(t));
+}
 
 function combineDateAndTime(day: Date, timeStr: string): Date {
   const parts = timeStr.split(":");
@@ -133,6 +165,8 @@ export type DayArrivalSegment =
 
 export type DayArrivalPlanResult = {
   selectedDate: string;
+  /** Term codes included in this plan (e.g. Winter 2026 → `2026/WI`). */
+  includedTermCodes: string[];
   scheduleNote: string;
   gapMinutesAssumeLeftCampus: number;
   segments: DayArrivalSegment[];
@@ -162,15 +196,21 @@ function resolveEndsAt(dayStart: Date, course: Course, startsAt: Date): Date {
 }
 
 /**
- * Until day-of-week exists on enrollments, every class in the schedule is treated as meeting on `selectedDay`.
+ * Until day-of-week exists on enrollments, every matching class is treated as meeting on `selectedDay`.
+ * Courses are restricted to `allowedTermCodes` (Winter 2026 by default).
  */
-function findAllClassesOnSelectedDay(schedules: ClassSchedule[], selectedDayStart: Date): ClassOnDay[] {
+function findAllClassesOnSelectedDay(
+  schedules: ClassSchedule[],
+  selectedDayStart: Date,
+  allowedTermCodesNormalized: ReadonlySet<string>
+): ClassOnDay[] {
   const out: ClassOnDay[] = [];
   for (const s of schedules) {
     const c = s.course;
     if (!c) continue;
+    if (!courseMatchesArrivalTermFilter(c, allowedTermCodesNormalized)) continue;
+    if (!hasPlausibleMeetingTimes(c.startTime, c.endTime)) continue;
     if (!c.building?.trim()) continue;
-    if (!c.startTime || c.startTime.trim() === "" || c.startTime === "00:00") continue;
     const startsAt = combineDateAndTime(selectedDayStart, c.startTime);
     const endsAt = resolveEndsAt(selectedDayStart, c, startsAt);
     out.push({ schedule: s, course: c, startsAt, endsAt });
@@ -284,8 +324,11 @@ export async function getArrivalRecommendationForUser(
   const student = await studentService.findByUserId(userId);
   if (!student) return null;
 
+  const includedTermCodes = getArrivalPlanTermCodes();
+  const allowedTermCodesNormalized = new Set(includedTermCodes.map(normalizeTermCode));
+
   const schedules = await classScheduleService.findAll({ studentId: student.id }, ["course"]);
-  const classesOnDay = findAllClassesOnSelectedDay(schedules, selectedDayStart);
+  const classesOnDay = findAllClassesOnSelectedDay(schedules, selectedDayStart, allowedTermCodesNormalized);
   if (classesOnDay.length === 0) return null;
 
   const segments: DayArrivalSegment[] = [];
@@ -347,8 +390,11 @@ export async function getArrivalRecommendationForUser(
 
   return {
     selectedDate: formatLocalYyyyMmDd(selectedDayStart),
+    includedTermCodes,
     scheduleNote:
-      "Day-of-week is not stored on class schedule entries yet; all of your enrolled classes are treated as if they run on this day. Classes are ordered by start time.",
+      `Only classes in term code(s) ${includedTermCodes.join(", ")} are included (default ${DEFAULT_ARRIVAL_PLAN_TERM_CODE} = Winter 2026). ` +
+      "Courses with placeholder meeting times (e.g. 00:00–00:00, 00:00–23:59, or blocks over 14 hours) are excluded. " +
+      "Day-of-week is not stored on class schedule entries yet; matching classes are treated as if they run on this day. Classes are ordered by start time.",
     gapMinutesAssumeLeftCampus: gapThreshold,
     segments,
     assumptions: {

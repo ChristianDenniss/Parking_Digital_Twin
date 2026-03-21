@@ -1,5 +1,16 @@
 const BASE = import.meta.env.VITE_API_URL ?? "";
 
+/** Thrown on non-OK responses so callers can handle 401 (expired token) vs other errors. */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function request<T>(
   path: string,
   options: RequestInit & { token?: string } = {}
@@ -13,10 +24,15 @@ async function request<T>(
 
   const res = await fetch(`${BASE}${path}`, { ...init, headers });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : undefined;
+  let data: { error?: string } | undefined;
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    data = undefined;
+  }
 
   if (!res.ok) {
-    throw new Error(data?.error ?? res.statusText ?? "Request failed");
+    throw new ApiError(data?.error ?? res.statusText ?? "Request failed", res.status);
   }
   return data as T;
 }

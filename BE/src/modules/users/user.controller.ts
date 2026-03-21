@@ -5,6 +5,7 @@ import * as userService from "./user.service";
 import * as studentService from "../students/student.service";
 import * as classScheduleService from "../classSchedule/classSchedule.service";
 import * as arrivalRecommendationService from "../arrival/arrivalRecommendation.service";
+import { hasPlausibleMeetingTimes } from "../classes/courseMeetingTime.util";
 import { createUserSchema, loginSchema, patchMeSchema, updateUserSchema } from "./user.schema";
 import type { AuthUser } from "../../middleware/auth";
 import { validate } from "../../utils/validate";
@@ -255,7 +256,12 @@ export async function mySchedule(req: Request, res: Response) {
       };
     })
   );
-  res.json(withDetails);
+  const visible = withDetails.filter(
+    (row) =>
+      !row.course ||
+      hasPlausibleMeetingTimes(row.course.startTime, row.course.endTime)
+  );
+  res.json(visible);
 }
 
 export async function list(req: Request, res: Response) {

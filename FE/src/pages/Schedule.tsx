@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import type { Course, MeResponse, ScheduleEntry } from "../api/types";
 
 const tokenKey = "parking_twin_token";
@@ -52,6 +52,21 @@ export function Schedule() {
   const [profileStudentId, setProfileStudentId] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
+
+  const clearSession = () => {
+    localStorage.removeItem(tokenKey);
+    setToken(null);
+    setMe(null);
+    setSchedule([]);
+    setError(null);
+  };
+
+  const handleLogout = () => {
+    clearSession();
+    setAuthNotice(null);
+    navigate("/");
+  };
 
   // Load course catalog on mount so the add-class dropdown always has data
   useEffect(() => {
@@ -73,8 +88,16 @@ export function Schedule() {
       .then(([meData, scheduleData]) => {
         setMe(meData);
         setSchedule(scheduleData);
+        setAuthNotice(null);
       })
-      .catch((e) => setError(e.message))
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 401) {
+          setAuthNotice("Your session expired or is invalid. Sign in again to continue.");
+          clearSession();
+          return;
+        }
+        setError(e instanceof Error ? e.message : "Request failed");
+      })
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -129,17 +152,18 @@ export function Schedule() {
       .then(() =>
         api.get<ScheduleEntry[]>("/api/users/me/schedule", token ?? undefined).then(setSchedule)
       )
-      .catch((e) => setError(e.message));
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 401) {
+          setAuthNotice("Your session expired. Sign in again.");
+          clearSession();
+          return;
+        }
+        setError(e instanceof Error ? e.message : "Request failed");
+      });
   };
 
   const handleRemoveClick = (entry: ScheduleEntry) => {
     setConfirmRemove(entry);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem(tokenKey);
-    setToken(null);
-    navigate("/");
   };
 
   const needsStudentIdForSave =
@@ -180,14 +204,26 @@ export function Schedule() {
         setSchedule((prev) => prev.filter((e) => e.id !== confirmRemove.id));
         setConfirmRemove(null);
       })
-      .catch((e) => setError(e.message))
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 401) {
+          setAuthNotice("Your session expired. Sign in again.");
+          clearSession();
+          return;
+        }
+        setError(e instanceof Error ? e.message : "Request failed");
+      })
       .finally(() => setRemovingId(null));
   };
 
   if (!token) {
     return (
-      <div className="max-w-3xl mx-auto px-6 py-10 text-center">
-        <p className="text-slate-700 mb-4">Sign in to view and manage your class schedule.</p>
+      <div className="max-w-3xl mx-auto px-6 py-10 text-center space-y-4">
+        {authNotice && (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-sm px-4 py-3 max-w-md mx-auto">
+            {authNotice}
+          </p>
+        )}
+        <p className="text-slate-700">Sign in to view and manage your class schedule.</p>
         <button
           type="button"
           onClick={() => navigate("/auth")}
@@ -212,15 +248,54 @@ export function Schedule() {
 
   if (error) {
     return (
-      <div className="max-w-3xl mx-auto px-6 py-10">
-        <p className="text-red-600 mb-4">{error}</p>
-        <button
-          type="button"
-          onClick={() => setError(null)}
-          className="text-unb-red font-medium"
-        >
-          Dismiss
-        </button>
+      <div className="max-w-3xl mx-auto px-6 py-10 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-slate-900">My account</h1>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="px-4 py-2 rounded-lg border-2 border-unb-red bg-white text-unb-red font-semibold hover:bg-unb-red hover:text-white transition-colors"
+          >
+            Log out
+          </button>
+        </div>
+        <p className="text-red-600">{error}</p>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+              Promise.all([
+                api.get<MeResponse>("/api/users/me", token!),
+                api.get<ScheduleEntry[]>("/api/users/me/schedule", token!),
+              ])
+                .then(([meData, scheduleData]) => {
+                  setMe(meData);
+                  setSchedule(scheduleData);
+                })
+                .catch((e: unknown) => {
+                  if (e instanceof ApiError && e.status === 401) {
+                    setAuthNotice("Your session expired. Sign in again.");
+                    clearSession();
+                    return;
+                  }
+                  setError(e instanceof Error ? e.message : "Request failed");
+                })
+                .finally(() => setLoading(false));
+            }}
+            className="px-4 py-2 rounded-lg bg-unb-red text-white font-semibold hover:bg-unb-red-dark"
+          >
+            Try again
+          </button>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50"
+          >
+            Dismiss
+          </button>
+        </div>
       </div>
     );
   }

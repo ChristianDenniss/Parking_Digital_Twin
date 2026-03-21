@@ -181,6 +181,8 @@ export type DayArrivalSegment =
 
 export interface DayArrivalPlanResponse {
   selectedDate: string;
+  /** Catalog term codes used for this plan (e.g. Winter 2026 → `2026/WI`). */
+  includedTermCodes: string[];
   scheduleNote: string;
   gapMinutesAssumeLeftCampus: number;
   segments: DayArrivalSegment[];

@@ -1001,8 +1001,9 @@ paths:
         - Users
       summary: Full-day parking plan for a calendar date
       description: >
-        For the given local calendar `date`, treats all enrolled classes as meeting that day (until weekdays exist
-        on schedule rows). Classes are sorted by start time. The first segment recommends when to arrive and where to
+        For the given local calendar `date`, uses only courses whose `term` matches the configured term(s)
+        (default `2026/WI`, Winter 2026). Those classes are treated as meeting that day (until weekdays exist on
+        schedule rows). Classes are sorted by start time. The first segment recommends when to arrive and where to
         park for the first class. Between consecutive classes, if the gap from the previous class end to the next
         start is greater than 60 minutes, a return-and-park segment recommends a fresh lot/spot and arrival time for
         the next class (assumes you left campus). Otherwise a stay-on-campus segment is emitted.
@@ -1045,12 +1046,15 @@ paths:
       tags:
         - Users
       summary: Get class schedule for current user's student
+      description: >
+        Omits entries whose course has placeholder meeting times (e.g. 00:00–00:00, 00:00–23:59, or a single block
+        longer than 14 hours) so thesis/independent-study placeholders do not appear in the app UI.
       operationId: getMySchedule
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: List of schedule entries with embedded course details (empty if no student linked)
+          description: List of schedule entries with embedded course details (empty if no student linked); junk time rows filtered out
           content:
             application/json:
               schema:
@@ -1419,6 +1423,7 @@ components:
       type: object
       required:
         - selectedDate
+        - includedTermCodes
         - scheduleNote
         - gapMinutesAssumeLeftCampus
         - segments
@@ -1427,6 +1432,12 @@ components:
         selectedDate:
           type: string
           example: "2026-03-19"
+        includedTermCodes:
+          type: array
+          items:
+            type: string
+          description: Catalog term codes included in the plan (default Winter 2026 → 2026/WI)
+          example: ["2026/WI"]
         scheduleNote:
           type: string
         gapMinutesAssumeLeftCampus:
