@@ -7,7 +7,8 @@ export interface CacheMiddlewareOptions extends CacheOptions {
 }
 
 function generateCacheKey(req: Request): string {
-  const { method, path, query } = req;
+  const { method, path } = req;
+  const query = req.query ?? {};
   const queryString =
     Object.keys(query).length > 0
       ? "?" + new URLSearchParams(query as Record<string, string>).toString()

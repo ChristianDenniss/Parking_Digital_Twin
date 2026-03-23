@@ -31,6 +31,15 @@ export interface LotBuildingDistance {
   building?: Building;
 }
 
+export type SimulatorMapMode = "live" | "scenario";
+
+export interface SimulatorState {
+  paused: boolean;
+  mapMode: SimulatorMapMode;
+  scenarioDate: string | null;
+  scenarioTime: string | null;
+}
+
 export interface ParkingSpot {
   id: string;
   parkingLotId: string;

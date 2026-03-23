@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, Outlet, useOutletContext } from "react-router-dom";
+import type { NavigateFunction } from "react-router-dom";
 import { api } from "../api/client";
 import type {
   DayArrivalPlanResponse,
@@ -7,36 +8,11 @@ import type {
   ParkingLot,
   ParkingSpot,
 } from "../api/types";
-import { ParkingMap, type ParkingMapDataMode } from "../components/ParkingMap";
-import unbLogoAlternate from "../images/UNBlogoAlternate.png";
-
-const tokenKey = "parking_twin_token";
 
 function formatLocalTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
-  });
-}
-
-/** Local calendar date as YYYY-MM-DD (avoid UTC shift from toISOString). */
-function localISODate(d = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function localTimeHHmm(d = new Date()): string {
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-/** Whole control should open native picker; icon uses pointer-events: none so value area is clickable. */
-function tryOpenScenarioPicker(e: MouseEvent<HTMLInputElement>) {
-  const el = e.currentTarget as HTMLInputElement & { showPicker?: () => void | Promise<void> };
-  if (typeof el.showPicker !== "function") return;
-  void Promise.resolve(el.showPicker()).catch(() => {
-    /* NotAllowedError / unsupported — fall back to default focus behavior */
   });
 }
 
@@ -50,24 +26,27 @@ function lotHeatMapHref(lotId: string, spotId: string): string {
   return `/lot/${lotId}?spot=${encodeURIComponent(spotId)}`;
 }
 
-/** Sections GeoJSON from /api/earth-engine/sections */
-interface SectionsGeoJSON {
-  type: "FeatureCollection";
-  features: Array<{
-    type: "Feature";
-    geometry: { type: string; coordinates: unknown };
-    properties: Record<string, unknown> & { name: string };
+export type LotSortOption = "most-free" | "highest-free-pct" | "biggest" | "smallest";
+
+export type HomeOutletContextValue = {
+  token: string | null;
+  planDate: string;
+  setPlanDate: (v: string) => void;
+  sortedByLot: Array<{
+    lot: ParkingLot;
+    total: number;
+    occupied: number;
+    empty: number;
+    occupancyPercent: number;
+    freePercent: number;
   }>;
-}
+  lotSort: LotSortOption;
+  setLotSort: (v: LotSortOption) => void;
+  navigate: NavigateFunction;
+};
 
-interface Stats {
-  totalSpots: number;
-  occupied: number;
-  empty: number;
-  occupancyPercent: number;
-}
-
-type LotSortOption = "most-free" | "highest-free-pct" | "biggest" | "smallest";
+const HOME_LOT_CARD_CLASS =
+  "w-full text-left rounded border border-slate-200 bg-white py-2 px-3 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-0.5 transition-all duration-200 hover:scale-[1.02] hover:bg-unb-red/5 hover:border-unb-red/50 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-unb-red focus-visible:ring-offset-1 cursor-pointer";
 
 /** Tailwind text color class for % full (occupancy) on lot cards. */
 function getOccupancyColorClass(pct: number): string {
@@ -276,289 +255,30 @@ function DayParkingPlanCard(props: {
   );
 }
 
+/** Nested under `CampusShell`; forwards outlet context from the shell to `HomeIndexContent` / `LotDetail`. */
 export function Home() {
-  const navigate = useNavigate();
-  const [lots, setLots] = useState<ParkingLot[]>([]);
-  const [spots, setSpots] = useState<ParkingSpot[]>([]);
-  const [tileUrl, setTileUrl] = useState<string | null>(null);
-  const [tileUrlError, setTileUrlError] = useState<string | null>(null);
-  const [sectionsGeoJSON, setSectionsGeoJSON] = useState<SectionsGeoJSON | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lotSort, setLotSort] = useState<LotSortOption>("biggest");
-  const [token, setToken] = useState<string | null>(() =>
-    typeof window !== "undefined" ? localStorage.getItem(tokenKey) : null
-  );
-  const [planDate, setPlanDate] = useState("");
-  const [mapDataMode, setMapDataMode] = useState<ParkingMapDataMode>("live");
-  const [mapScenarioDate, setMapScenarioDate] = useState(() => localISODate());
-  const [mapScenarioTimeHHmm, setMapScenarioTimeHHmm] = useState(() => localTimeHHmm());
+  const ctx = useOutletContext<HomeOutletContextValue>();
+  return <Outlet context={ctx} />;
+}
 
-  useEffect(() => {
-    const syncToken = () => setToken(localStorage.getItem(tokenKey));
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === tokenKey) setToken(e.newValue);
-    };
-    window.addEventListener("focus", syncToken);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener("focus", syncToken);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
-
-  useEffect(() => {
-    Promise.all([
-      api.get<ParkingLot[]>("/api/parking-lots"),
-      api.get<ParkingSpot[]>("/api/parking-spots"),
-    ])
-      .then(([lotsData, spotsData]) => {
-        setLots(lotsData);
-        setSpots(spotsData);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    api
-      .get<{ tileUrl: string }>("/api/earth-engine/tiles")
-      .then((data) => setTileUrl(data.tileUrl))
-      .catch((e) => setTileUrlError(e.message));
-  }, []);
-
-  useEffect(() => {
-    api
-      .get<SectionsGeoJSON>("/api/earth-engine/sections")
-      .then(setSectionsGeoJSON)
-      .catch(() => setSectionsGeoJSON(null)); // optional: map works without sections layer
-  }, []);
-
-  const sectionsWithLotNames = useMemo(() => {
-    if (!sectionsGeoJSON || !Array.isArray(sectionsGeoJSON.features) || sectionsGeoJSON.features.length === 0) {
-      return sectionsGeoJSON;
-    }
-    // Prefer backend / GEE-provided name; only fall back to lot ordering if name is missing.
-    const lotOrder = [
-      "StaffParking1",
-      "GeneralParking1",
-      "GeneralParking2",
-      "GeneralParking3",
-      "TimedParking1",
-      "GeneralParking4",
-      "TimedParking2",
-      "StaffParking2",
-      "ResidentParking1",
-      "ResidentParking2",
-      "StaffParking3",
-      "TBD",
-      "PHDParking1",
-      "GeneralParking5",
-      "StaffParking4",
-      "ResidentParking3",
-    ];
-    const sortedLots = [...lots].sort(
-      (a, b) => lotOrder.indexOf(a.name) - lotOrder.indexOf(b.name)
-    );
-    return {
-      ...sectionsGeoJSON,
-      features: sectionsGeoJSON.features.map((f, i) => {
-        const backendName = (f.properties?.name as string | undefined)?.trim();
-        const fallbackName = sortedLots[i]?.name ?? `Section ${i + 1}`;
-        return {
-          ...f,
-          properties: {
-            ...f.properties,
-            name: backendName && backendName.length > 0 ? backendName : fallbackName,
-          },
-        };
-      }),
-    };
-  }, [sectionsGeoJSON, lots]);
-
-  const byLot = useMemo(() => {
-    return lots.map((lot) => {
-      const lotSpots = spots.filter((s) => s.parkingLotId === lot.id);
-      const occupied = lotSpots.filter((s) => s.currentStatus === "occupied").length;
-      const total = lotSpots.length;
-      const empty = total - occupied;
-      const occupancyPercent = total ? Math.round((occupied / total) * 100) : 0;
-      const freePercent = total ? (empty / total) * 100 : 0;
-      return {
-        lot,
-        total,
-        occupied,
-        empty,
-        occupancyPercent,
-        freePercent,
-      };
-    });
-  }, [lots, spots]);
-
-  const sortedByLot = useMemo(() => {
-    const sorted = [...byLot];
-    switch (lotSort) {
-      case "most-free":
-        return sorted.sort((a, b) => b.empty - a.empty);
-      case "highest-free-pct":
-        return sorted.sort((a, b) => b.freePercent - a.freePercent);
-      case "biggest":
-        return sorted.sort((a, b) => b.total - a.total);
-      case "smallest":
-        return sorted.sort((a, b) => a.total - b.total);
-      default:
-        return sorted;
-    }
-  }, [byLot, lotSort]);
-
-  if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto px-6 py-10 space-y-6">
-        <div className="skeleton h-8 w-40" />
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-5xl mx-auto px-6 py-10 text-red-600">
-        Error loading parking data: {error}
-      </div>
-    );
-  }
-
-  const occupiedCount = spots.filter((s) => s.currentStatus === "occupied").length;
-  const totalSpots = spots.length;
-  const stats: Stats = {
-    totalSpots,
-    occupied: occupiedCount,
-    empty: totalSpots - occupiedCount,
-    // Campus-wide %: based on current total spots in DB.
-    occupancyPercent: totalSpots ? Math.round((occupiedCount / totalSpots) * 100) : 0,
-  };
-
-  const statsOverlay = (
-    <div className="rounded-lg border-2 border-unb-red bg-white/95 backdrop-blur p-4 shadow-lg">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-        Live occupancy
-      </p>
-      <div className="grid grid-cols-4 gap-3 text-center">
-        <div>
-          <p className="text-lg font-bold">{stats.totalSpots.toLocaleString()}</p>
-          <p className="text-xs text-slate-500">Total</p>
-        </div>
-        <div>
-          <p className="text-lg font-bold text-emerald-600">{stats.empty.toLocaleString()}</p>
-          <p className="text-xs text-slate-500">Free</p>
-        </div>
-        <div>
-          <p className="text-lg font-bold text-red-600">{stats.occupied.toLocaleString()}</p>
-          <p className="text-xs text-slate-500">Taken</p>
-        </div>
-        <div>
-          <p className="text-lg font-bold text-unb-red">{stats.occupancyPercent}%</p>
-          <p className="text-xs text-slate-500">Occupancy</p>
-        </div>
-      </div>
-      {tileUrlError && (
-        <p className="text-xs text-amber-600 mt-2">Map layer: {tileUrlError}</p>
-      )}
-    </div>
-  );
+/** Index route only: plan card + per-lot list. */
+export function HomeIndexContent() {
+  const {
+    token,
+    planDate,
+    setPlanDate,
+    sortedByLot,
+    lotSort,
+    setLotSort,
+    navigate,
+  } = useOutletContext<HomeOutletContextValue>();
 
   const half = Math.ceil(sortedByLot.length / 2);
   const leftColumn = sortedByLot.slice(0, half);
   const rightColumn = sortedByLot.slice(half);
-  const lotCardClass =
-    "w-full text-left rounded border border-slate-200 bg-white py-2 px-3 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-0.5 transition-all duration-200 hover:scale-[1.02] hover:bg-unb-red/5 hover:border-unb-red/50 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-unb-red focus-visible:ring-offset-1 cursor-pointer";
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-10 space-y-8">
-      <header className="space-y-3">
-        <div className="flex items-center gap-3">
-          <img src={unbLogoAlternate} alt="University of New Brunswick" className="h-28 w-auto" />
-          <h1 className="text-3xl font-bold text-unb-black">
-            Parking Digital Twin
-          </h1>
-        </div>
-        <p className="text-slate-600">
-          Live view of parking occupancy on campus (simulated sensors).
-        </p>
-      </header>
-
-      <section>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <h2 className="text-lg font-semibold">Campus map (Google Earth Engine API)</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <div
-              className="inline-flex h-8 box-border items-stretch overflow-hidden rounded-md border-2 border-unb-red bg-white shadow-sm"
-              role="group"
-              aria-label="Map data context"
-            >
-              <button
-                type="button"
-                onClick={() => setMapDataMode("live")}
-                className={`flex items-center justify-center px-3 text-xs font-semibold leading-none transition-colors ${
-                  mapDataMode === "live"
-                    ? "bg-unb-red text-white"
-                    : "text-slate-900 hover:bg-unb-red/5"
-                }`}
-              >
-                Live
-              </button>
-              <button
-                type="button"
-                onClick={() => setMapDataMode("pick-time")}
-                className={`flex items-center justify-center border-l-2 border-unb-red px-3 text-xs font-semibold leading-none transition-colors ${
-                  mapDataMode === "pick-time"
-                    ? "bg-unb-red text-white"
-                    : "text-slate-900 hover:bg-unb-red/5"
-                }`}
-              >
-                Pick time
-              </button>
-            </div>
-            {mapDataMode === "pick-time" && (
-              <>
-                <input
-                  type="time"
-                  value={mapScenarioTimeHHmm}
-                  onChange={(e) => setMapScenarioTimeHHmm(e.target.value)}
-                  onClick={tryOpenScenarioPicker}
-                  aria-label="Scenario time"
-                  className="map-scenario-datetime box-border h-8 cursor-pointer rounded-md border-2 border-unb-red bg-white text-sm font-medium leading-none text-slate-900 focus:border-unb-red focus:outline-none focus:ring-2 focus:ring-unb-red/25"
-                />
-                <input
-                  type="date"
-                  value={mapScenarioDate}
-                  onChange={(e) => setMapScenarioDate(e.target.value)}
-                  onClick={tryOpenScenarioPicker}
-                  aria-label="Scenario date"
-                  className="map-scenario-datetime box-border h-8 cursor-pointer rounded-md border-2 border-unb-red bg-white text-sm font-medium leading-none text-slate-900 focus:border-unb-red focus:outline-none focus:ring-2 focus:ring-unb-red/25"
-                />
-              </>
-            )}
-          </div>
-        </div>
-        <ParkingMap
-          earthEngineTileUrl={tileUrl}
-          sectionsGeoJSON={sectionsWithLotNames}
-          lots={lots}
-          onSectionClick={(lotId) => navigate(`/lot/${lotId}`)}
-          mapDataMode={mapDataMode}
-          scenarioDate={mapScenarioDate}
-          scenarioTimeHHmm={mapScenarioTimeHHmm}
-          className="h-[480px]"
-        >
-          {statsOverlay}
-        </ParkingMap>
-      </section>
-
+    <>
       <DayParkingPlanCard token={token} planDate={planDate} onPlanDateChange={setPlanDate} />
 
       <section>
@@ -583,7 +303,7 @@ export function Home() {
             </select>
           </label>
         </div>
-        {byLot.length === 0 ? (
+        {sortedByLot.length === 0 ? (
           <p className="text-slate-500 text-sm">
             No lots found. Did you run <code>npm run seed</code> in the backend?
           </p>
@@ -595,7 +315,7 @@ export function Home() {
                   type="button"
                   key={lot.id}
                   onClick={() => navigate(`/lot/${lot.id}`)}
-                  className={lotCardClass}
+                  className={HOME_LOT_CARD_CLASS}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <p className="font-semibold text-sm truncate">{lot.name}</p>
@@ -616,7 +336,7 @@ export function Home() {
                   type="button"
                   key={lot.id}
                   onClick={() => navigate(`/lot/${lot.id}`)}
-                  className={lotCardClass}
+                  className={HOME_LOT_CARD_CLASS}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <p className="font-semibold text-sm truncate">{lot.name}</p>
@@ -634,7 +354,6 @@ export function Home() {
           </div>
         )}
       </section>
-    </div>
+    </>
   );
 }
-

@@ -6,6 +6,7 @@ import { initializeEarthEngine } from "./config/earthEngine";
 import { notFound, errorHandler, requestLogger, loggingMiddleware } from "./middleware";
 import { cacheHealthCheck } from "./middleware/cache";
 import { startSimulator } from "./modules/simulator";
+import simulatorRoute from "./modules/simulator.route";
 import parkingLotRoute from "./modules/parkingLots/parkingLot.route";
 import parkingSpotRoute from "./modules/parkingSpots/parkingSpot.route";
 import parkingSpotLogRoute from "./modules/parkingSpotLogs/parkingSpotLog.route";
@@ -31,6 +32,7 @@ async function main() {
 
   app.use("/api/parking-lots", parkingLotRoute);
   app.use("/api/parking-spots", parkingSpotRoute);
+  app.use("/api/simulator", simulatorRoute);
   app.use("/api/parking-spot-logs", parkingSpotLogRoute);
   app.use("/api/historical", historicalRoute);
   app.use("/api/students", studentRoute);

@@ -6,6 +6,7 @@ import { ParkingLot } from "../src/modules/parkingLots/parkingLot.entity";
 import { ParkingSpot } from "../src/modules/parkingSpots/parkingSpot.entity";
 import { Building } from "../src/modules/buildings/building.entity";
 import { LotBuildingDistance } from "../src/modules/buildings/lotBuildingDistance.entity";
+import * as parkingOccupancyAssign from "../src/modules/parkingSpots/parkingOccupancyAssign.service";
 
 /** Path to lot SVGs (DTProj/FE/src/images/svgs).
  * Seed reads data-spot-label from each file as source of truth.
@@ -60,6 +61,9 @@ function randomLotImageUrl(): string {
 }
 
 const REPLACE = process.argv.includes("--replace");
+
+const SEED_SCENARIO_DATE = process.env.SEED_SCENARIO_DATE ?? "2026-03-15";
+const SEED_SCENARIO_TIME = process.env.SEED_SCENARIO_TIME ?? "11:00";
 
 async function seed() {
   await AppDataSource.initialize();
@@ -117,15 +121,8 @@ async function seed() {
   const BATCH = 200;
   const fallbackRows = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
   let totalSpots = 0;
-  for (let lotIndex = 0; lotIndex < lots.length; lotIndex++) {
-    const lot = lots[lotIndex];
+  for (const lot of lots) {
     const capacity = lot.capacity;
-    let occupiedCount: number | null = null;
-    if (lotIndex === 0) {
-      occupiedCount = Math.ceil(capacity * 0.96);
-    } else if (lotIndex === 1) {
-      occupiedCount = Math.floor(capacity * 0.35);
-    }
     const lotPrefix = (() => {
       const base = lot.name.replace(/\s/g, "");
       const trailingNum = base.match(/\d+$/)?.[0];
@@ -156,14 +153,6 @@ async function seed() {
         const match = rowAndNumber.match(/^([A-Za-z]+)-(\d+)$/);
         const section = match ? match[1] : rowAndNumber.split("-")[0] ?? "A";
         const index = match ? parseInt(match[2], 10) : n + 1;
-        const status: "occupied" | "empty" =
-          occupiedCount !== null
-            ? n < occupiedCount
-              ? "occupied"
-              : "empty"
-            : Math.random() < 0.5
-              ? "occupied"
-              : "empty";
         spots.push(
           spotRepo.create({
             parkingLotId: lot.id,
@@ -172,7 +161,7 @@ async function seed() {
             row: section,
             index,
             slotIndex: n + 1,
-            currentStatus: status,
+            currentStatus: "empty",
           })
         );
       });
@@ -190,14 +179,6 @@ async function seed() {
       svgSpotOrderByFill.forEach((_isDisabled, n) => {
         const rowLetter = fallbackRows[n % rowCount];
         const idx = Math.floor(n / rowCount) + 1;
-        const status: "occupied" | "empty" =
-          occupiedCount !== null
-            ? n < occupiedCount
-              ? "occupied"
-              : "empty"
-            : Math.random() < 0.5
-              ? "occupied"
-              : "empty";
         const rowAndNumber = `${rowLetter}-${String(idx).padStart(3, "0")}`;
         spots.push(
           spotRepo.create({
@@ -207,7 +188,7 @@ async function seed() {
             row: rowLetter,
             index: idx,
             slotIndex: n + 1,
-            currentStatus: status,
+            currentStatus: "empty",
           })
         );
       });
@@ -222,14 +203,6 @@ async function seed() {
       for (let n = 0; n < capacity; n++) {
         const rowIndex = n % perRow;
         const rowLetter = fallbackRows[Math.floor(n / perRow)];
-        const status: "occupied" | "empty" =
-          occupiedCount !== null
-            ? n < occupiedCount
-              ? "occupied"
-              : "empty"
-            : Math.random() < 0.5
-              ? "occupied"
-              : "empty";
         spots.push(
           spotRepo.create({
             parkingLotId: lot.id,
@@ -239,7 +212,7 @@ async function seed() {
             index: rowIndex + 1,
             // Set slotIndex so frontend mapping-by-order works even for fallback-generated lots.
             slotIndex: n + 1,
-            currentStatus: status,
+            currentStatus: "empty",
           })
         );
       }
@@ -291,6 +264,15 @@ async function seed() {
       }
     }
     console.log(`Seeded lot-building distances (${lots.length} lots x ${buildings.length} buildings).`);
+  }
+
+  try {
+    const occ = await parkingOccupancyAssign.applyScenarioOccupancy(SEED_SCENARIO_DATE, SEED_SCENARIO_TIME);
+    console.log(
+      `Applied campus occupancy profile at ${SEED_SCENARIO_DATE} ${SEED_SCENARIO_TIME} (target k≈${occ.kTotal}; ${occ.updated} spot rows updated of ${occ.totalSpots}).`
+    );
+  } catch (e) {
+    console.warn("Could not apply SEED_SCENARIO_DATE/TIME occupancy (courses/distances may be missing):", e);
   }
 
   console.log(`Seeded ${lots.length} parking lots and ${totalSpots} parking spots.`);

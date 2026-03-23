@@ -1,5 +1,6 @@
 import { Routes, Route, NavLink, useNavigate } from "react-router-dom";
-import { Home } from "./pages/Home";
+import { CampusShell } from "./pages/CampusShell";
+import { Home, HomeIndexContent } from "./pages/Home";
 import { Lots } from "./pages/Lots";
 import { LotDetail } from "./pages/LotDetail";
 import { Auth } from "./pages/Auth";
@@ -67,13 +68,17 @@ export default function App() {
     <div className="bg-slate-50 text-slate-900 min-h-screen font-sans">
       <Nav />
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/lots" element={<Lots />} />
-        <Route path="/lot/:id" element={<LotDetail />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/logs" element={<Logs />} />
-        <Route path="/api" element={<Api />} />
-        <Route path="/schedule" element={<Schedule />} />
+        <Route element={<CampusShell />}>
+          <Route path="/" element={<Home />}>
+            <Route index element={<HomeIndexContent />} />
+            <Route path="lot/:id" element={<LotDetail />} />
+          </Route>
+          <Route path="lots" element={<Lots />} />
+          <Route path="auth" element={<Auth />} />
+          <Route path="logs" element={<Logs />} />
+          <Route path="api" element={<Api />} />
+          <Route path="schedule" element={<Schedule />} />
+        </Route>
       </Routes>
     </div>
   );

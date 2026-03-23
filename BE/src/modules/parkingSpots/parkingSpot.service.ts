@@ -24,6 +24,49 @@ export async function findAll(filters: {
   });
 }
 
+export async function findAllWithLots(): Promise<ParkingSpot[]> {
+  return spotRepo().find({
+    relations: ["parkingLot"],
+    order: {
+      parkingLotId: "ASC",
+      slotIndex: "ASC",
+      section: "ASC",
+      row: "ASC",
+      index: "ASC",
+      id: "ASC",
+    },
+  });
+}
+
+/** Simulator / bulk scenario: no per-spot log rows. */
+export async function updateStatusWithoutLog(id: string, status: "occupied" | "empty"): Promise<void> {
+  await spotRepo().update({ id }, { currentStatus: status });
+}
+
+/**
+ * Record a reading in `parking_spot_readings` without touching `parking_spots` again.
+ * Used by the simulator after `updateStatusWithoutLog` so the Logs UI stays in sync with live flips.
+ */
+export async function appendStatusReadingLog(parkingSpotId: string, status: "occupied" | "empty"): Promise<void> {
+  const log = logRepo().create({
+    parkingSpotId,
+    status,
+    recordedAt: new Date(),
+  });
+  await logRepo().save(log);
+}
+
+export async function bulkSetStatusesWithoutLogs(
+  updates: { id: string; status: "occupied" | "empty" }[]
+): Promise<void> {
+  if (updates.length === 0) return;
+  const CHUNK = 80;
+  for (let i = 0; i < updates.length; i += CHUNK) {
+    const slice = updates.slice(i, i + CHUNK);
+    await Promise.all(slice.map((u) => spotRepo().update({ id: u.id }, { currentStatus: u.status })));
+  }
+}
+
 export async function findById(id: string): Promise<ParkingSpot | null> {
   return spotRepo().findOne({ where: { id } });
 }
@@ -37,7 +80,7 @@ export async function updateStatus(id: string, status: "occupied" | "empty"): Pr
   if (!spot) return null;
   spot.currentStatus = status;
   await spotRepo().save(spot);
-  // Log is created in the same flow; API and simulator never call log APIs directly
+  // Log is created in the same flow (simulator uses updateStatusWithoutLog + appendStatusReadingLog instead)
   const log = logRepo().create({
     parkingSpotId: spot.id,
     status,

@@ -36,6 +36,8 @@ tags:
     description: API users and auth-related endpoints.
   - name: Auth
     description: Registration and login (JWT).
+  - name: Simulator
+    description: Parking occupancy simulator play/pause and live vs scenario clock.
 
 paths:
   /api/health:
@@ -374,6 +376,110 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ParkingSpot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/parking-spots/apply-scenario:
+    post:
+      tags:
+        - Parking spots
+      summary: Bulk-apply occupancy snapshot for a scenario date and time (Moncton-local)
+      operationId: applyParkingScenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - date
+                - time
+              properties:
+                date:
+                  type: string
+                  description: Calendar date YYYY-MM-DD
+                  example: "2026-03-15"
+                time:
+                  type: string
+                  description: Local time HH:mm (15-minute profile alignment)
+                  example: "11:00"
+      responses:
+        "200":
+          description: Counts after apply (only spots with a changed status are written; no per-spot log rows)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: integer
+                    description: Number of parking_spots rows whose status actually changed
+                  kTotal:
+                    type: integer
+                    description: Target occupied count for the scenario
+                  totalSpots:
+                    type: integer
+                    description: Total spots evaluated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/parking-spots/apply-live:
+    post:
+      tags:
+        - Parking spots
+      summary: Bulk-apply occupancy snapshot for Moncton-local current time and switch simulator to live
+      operationId: applyParkingLive
+      responses:
+        "200":
+          description: Counts after apply; simulator map mode is live and unpaused
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: integer
+                    description: Number of parking_spots rows whose status actually changed
+                  kTotal:
+                    type: integer
+                    description: Target occupied count for the instant
+                  totalSpots:
+                    type: integer
+                    description: Total spots evaluated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/simulator:
+    get:
+      tags:
+        - Simulator
+      summary: Parking simulator play/pause and map mode
+      operationId: getSimulatorState
+      responses:
+        "200":
+          description: Current simulator flags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulatorState"
+    post:
+      tags:
+        - Simulator
+      summary: Set simulator paused and/or map mode (live vs scenario clock)
+      operationId: setSimulatorState
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulatorStatePatch"
+      responses:
+        "200":
+          description: Updated state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulatorState"
         "400":
           $ref: "#/components/responses/BadRequest"
 
@@ -1584,6 +1690,38 @@ components:
         evaluatedMode:
           type: string
           enum: [current, predicted]
+
+    SimulatorState:
+      type: object
+      properties:
+        paused:
+          type: boolean
+        mapMode:
+          type: string
+          enum: [live, scenario]
+        scenarioDate:
+          type: string
+          nullable: true
+          description: Last applied scenario date YYYY-MM-DD
+        scenarioTime:
+          type: string
+          nullable: true
+          description: Last applied scenario time HH:mm
+
+    SimulatorStatePatch:
+      type: object
+      properties:
+        paused:
+          type: boolean
+        mapMode:
+          type: string
+          enum: [live, scenario]
+        scenarioDate:
+          type: string
+          nullable: true
+        scenarioTime:
+          type: string
+          nullable: true
 
     ParkingSpot:
       type: object

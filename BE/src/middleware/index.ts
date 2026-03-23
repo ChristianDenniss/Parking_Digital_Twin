@@ -30,8 +30,10 @@ export function requestLogger(req: Request, _res: Response, next: NextFunction) 
 /** Logs request (query, params) and response status + duration. Use globally so earth-engine and all routes are covered. */
 export function loggingMiddleware(req: Request, res: Response, next: NextFunction) {
   const start = Date.now();
-  const hasQuery = req.query && Object.keys(req.query).length > 0;
-  const hasParams = req.params && Object.keys(req.params).length > 0;
+  const q = req.query ?? {};
+  const p = req.params ?? {};
+  const hasQuery = Object.keys(q).length > 0;
+  const hasParams = Object.keys(p).length > 0;
   if (hasQuery || hasParams) {
     console.log("[logging] request:", {
       method: req.method,

@@ -6,6 +6,16 @@ const router = Router();
 
 // Cache the list of spots (per query) for a short time
 router.get("/", cacheMiddleware({ prefix: "parking-spots", ttlSeconds: 30 }), controller.list);
+router.post(
+  "/apply-scenario",
+  invalidateCacheMiddleware("parking-spots"),
+  controller.applyScenario
+);
+router.post(
+  "/apply-live",
+  invalidateCacheMiddleware("parking-spots"),
+  controller.applyLive
+);
 // Cache individual spot lookups
 router.get(
   "/:id",
