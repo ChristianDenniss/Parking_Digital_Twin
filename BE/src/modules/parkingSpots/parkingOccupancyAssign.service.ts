@@ -3,12 +3,12 @@ import * as courseService from "../classes/course.service";
 import { hasPlausibleMeetingTimes } from "../classes/courseMeetingTime.util";
 import * as buildingService from "../buildings/building.service";
 import * as lotBuildingDistanceService from "../buildings/lotBuildingDistance.service";
+import { campusOccupancyInstantForMoncton } from "../../utils/occupancySignal";
 import {
   clockToMinutes,
   getWinter2026Slots,
   minutesToSlotIndex,
   parseScenarioMoncton,
-  profileInstantForMoncton,
   targetOccupancyRatio,
   UNBSJ_TIMEZONE,
 } from "../../utils/campusOccupancyProfile";
@@ -16,7 +16,7 @@ import { randomInt } from "crypto";
 import { DateTime } from "luxon";
 import * as parkingSpotService from "./parkingSpot.service";
 import { invalidateCache } from "../../middleware/cache";
-import { getArrivalPlanTermCodes } from "../arrival/arrivalRecommendation.service";
+import { getArrivalPlanTermCodes } from "../users/arrivalRecommendation.service";
 
 const D0_M = 35;
 const DIST_POW = 1.45;
@@ -251,7 +251,7 @@ export async function computeLotWeightsAndK(
   const idx = Math.min(minutesToSlotIndex(minutes), slots.length - 1);
   const slotStartMin = clockToMinutes(slots[idx]!.slotStart);
 
-  const prof = profileInstantForMoncton(z);
+  const prof = campusOccupancyInstantForMoncton(z);
   const totalSpots = spots.length;
   const r = targetOccupancyRatio(prof.carsCurr, totalSpots);
   const kTotal = sampleKTotalForSnapshot(r, totalSpots);

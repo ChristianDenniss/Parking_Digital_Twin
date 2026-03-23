@@ -4,7 +4,7 @@ import type { SignOptions } from "jsonwebtoken";
 import * as userService from "./user.service";
 import * as studentService from "../students/student.service";
 import * as classScheduleService from "../classSchedule/classSchedule.service";
-import * as arrivalRecommendationService from "../arrival/arrivalRecommendation.service";
+import * as arrivalRecommendationService from "./arrivalRecommendation.service";
 import { createUserSchema, loginSchema, patchMeSchema, updateUserSchema } from "./user.schema";
 import type { AuthUser } from "../../middleware/auth";
 import { validate } from "../../utils/validate";

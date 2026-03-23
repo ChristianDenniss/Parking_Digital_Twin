@@ -151,6 +151,12 @@ export interface ArrivalTimingBreakdown {
   recommendedArriveBy: string;
 }
 
+/** Moncton `apply-scenario` clock for this parking step (matches BE). */
+export interface OccupancyScenarioClock {
+  dateYmd: string;
+  timeHHmm: string;
+}
+
 export type DayArrivalSegment =
   | {
       type: "initial_arrival";
@@ -164,6 +170,7 @@ export type DayArrivalSegment =
         occupancyPercent: number;
       };
       timing: ArrivalTimingBreakdown;
+      occupancyScenario: OccupancyScenarioClock;
     }
   | {
       type: "stay_on_campus";
@@ -186,6 +193,7 @@ export type DayArrivalSegment =
         occupancyPercent: number;
       };
       timing: ArrivalTimingBreakdown;
+      occupancyScenario: OccupancyScenarioClock;
     };
 
 export interface DayArrivalPlanResponse {

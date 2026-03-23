@@ -43,6 +43,10 @@ export type HomeOutletContextValue = {
   lotSort: LotSortOption;
   setLotSort: (v: LotSortOption) => void;
   navigate: NavigateFunction;
+  /**
+   * Day parking plan: switch map to Pick time, set simulator to scenario + paused, apply snapshot.
+   */
+  applyPlanPausedScenario: (dateYmd: string, timeHHmm: string) => Promise<void>;
 };
 
 const HOME_LOT_CARD_CLASS =
@@ -62,8 +66,10 @@ function DayParkingPlanCard(props: {
   token: string | null;
   planDate: string;
   onPlanDateChange: (v: string) => void;
+  applyPlanPausedScenario: (dateYmd: string, timeHHmm: string) => Promise<void>;
+  navigate: NavigateFunction;
 }) {
-  const { token, planDate, onPlanDateChange } = props;
+  const { token, planDate, onPlanDateChange, applyPlanPausedScenario, navigate } = props;
   const [plan, setPlan] = useState<DayArrivalPlanResponse | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
@@ -98,6 +104,23 @@ function DayParkingPlanCard(props: {
     loadPlan();
   }, [loadPlan]);
 
+  /** When the plan loads, pre-apply the initial-arrival snapshot (paused scenario) for the campus map. */
+  useEffect(() => {
+    if (!plan || planLoading || planError || !token) return;
+    const initial = plan.segments.find((s) => s.type === "initial_arrival");
+    if (!initial || initial.type !== "initial_arrival") return;
+    const { dateYmd, timeHHmm } = initial.occupancyScenario;
+    if (!dateYmd?.trim() || !timeHHmm?.trim()) return;
+    void applyPlanPausedScenario(dateYmd, timeHHmm);
+  }, [plan, planLoading, planError, token, applyPlanPausedScenario]);
+
+  const openParkingStep = (href: string, os: { dateYmd: string; timeHHmm: string }) => {
+    void (async () => {
+      await applyPlanPausedScenario(os.dateYmd, os.timeHHmm);
+      navigate(href);
+    })();
+  };
+
   const renderSegment = (seg: DayArrivalSegment, i: number) => {
     if (seg.type === "initial_arrival") {
       const c = seg.targetClass;
@@ -105,6 +128,14 @@ function DayParkingPlanCard(props: {
         <li key={i}>
           <Link
             to={lotHeatMapHref(seg.parking.lot.id, seg.parking.spot.id)}
+            onClick={(e) => {
+              e.preventDefault();
+              if (!seg.occupancyScenario?.dateYmd || !seg.occupancyScenario?.timeHHmm) return;
+              openParkingStep(
+                lotHeatMapHref(seg.parking.lot.id, seg.parking.spot.id),
+                seg.occupancyScenario
+              );
+            }}
             className="block rounded-lg border border-slate-200 bg-slate-50/80 p-4 space-y-2 transition-colors hover:border-unb-red/50 hover:bg-white focus-visible:outline focus-visible:ring-2 focus-visible:ring-unb-red focus-visible:ring-offset-2"
             aria-label={`Open ${seg.parking.lot.name} map and highlight spot ${spotLabel(seg.parking.spot)}`}
           >
@@ -148,13 +179,21 @@ function DayParkingPlanCard(props: {
       );
     }
     const c = seg.targetClass;
-    return (
-      <li key={i}>
-        <Link
-          to={lotHeatMapHref(seg.parking.lot.id, seg.parking.spot.id)}
-          className="block rounded-lg border border-amber-200 bg-amber-50/70 p-4 space-y-2 transition-colors hover:border-amber-400 hover:bg-amber-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
-          aria-label={`Open ${seg.parking.lot.name} map and highlight spot ${spotLabel(seg.parking.spot)}`}
-        >
+      return (
+        <li key={i}>
+          <Link
+            to={lotHeatMapHref(seg.parking.lot.id, seg.parking.spot.id)}
+            onClick={(e) => {
+              e.preventDefault();
+              if (!seg.occupancyScenario?.dateYmd || !seg.occupancyScenario?.timeHHmm) return;
+              openParkingStep(
+                lotHeatMapHref(seg.parking.lot.id, seg.parking.spot.id),
+                seg.occupancyScenario
+              );
+            }}
+            className="block rounded-lg border border-amber-200 bg-amber-50/70 p-4 space-y-2 transition-colors hover:border-amber-400 hover:bg-amber-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+            aria-label={`Open ${seg.parking.lot.name} map and highlight spot ${spotLabel(seg.parking.spot)}`}
+          >
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
             Return &amp; park (class {c.classIndex})
           </p>
@@ -192,9 +231,10 @@ function DayParkingPlanCard(props: {
             Your day parking plan
           </h2>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Pick a date to load your plan. Only <strong>initial arrival</strong> and{" "}
-            <strong>return &amp; park</strong> steps are clickable (they open the lot heat map with the suggested
-            stall highlighted). <strong>Between classes</strong> / stay-on-campus blocks are informational only. Long
+            Pick a date to load your plan; the campus map switches to a <strong>paused scenario</strong> for your
+            initial arrival time. Clicking <strong>initial arrival</strong> or <strong>return &amp; park</strong>{" "}
+            reloads the matching scenario snapshot, then opens the lot heat map with the suggested stall highlighted.{" "}
+            <strong>Between classes</strong> / stay-on-campus blocks are informational only. Long
             gaps (&gt; 60 min, or the threshold shown below once loaded) assume you left campus and need to park
             again.
           </p>
@@ -271,6 +311,7 @@ export function HomeIndexContent() {
     lotSort,
     setLotSort,
     navigate,
+    applyPlanPausedScenario,
   } = useOutletContext<HomeOutletContextValue>();
 
   const half = Math.ceil(sortedByLot.length / 2);
@@ -279,7 +320,13 @@ export function HomeIndexContent() {
 
   return (
     <>
-      <DayParkingPlanCard token={token} planDate={planDate} onPlanDateChange={setPlanDate} />
+      <DayParkingPlanCard
+        token={token}
+        planDate={planDate}
+        onPlanDateChange={setPlanDate}
+        applyPlanPausedScenario={applyPlanPausedScenario}
+        navigate={navigate}
+      />
 
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">

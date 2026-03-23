@@ -2,6 +2,11 @@ import fs from "fs";
 import path from "path";
 import { DateTime } from "luxon";
 
+/**
+ * Heuristic “people on campus” curve (JSON). Consumed here and via `utils/occupancySignal.ts`
+ * (`campusOccupancyInstantForMoncton`) for simulator + scenario assign.
+ */
+
 /** UNBSJ civil time (Atlantic, DST-aware). */
 export const UNBSJ_TIMEZONE = "America/Moncton";
 

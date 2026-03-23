@@ -1,11 +1,11 @@
 import * as parkingSpotService from "./parkingSpots/parkingSpot.service";
 import { invalidateCache } from "../middleware/cache";
+import { campusOccupancyInstantForMoncton } from "../utils/occupancySignal";
 import {
   churnFromTriple,
   classTransitionChurnMultiplier,
   getMonctonNow,
   parseScenarioMoncton,
-  profileInstantForMoncton,
   targetOccupancyRatio,
   UNBSJ_TIMEZONE,
 } from "../utils/campusOccupancyProfile";
@@ -110,7 +110,7 @@ async function runTick() {
   const dt = activeProfileInstant();
   if (!dt) return;
 
-  const prof = profileInstantForMoncton(dt);
+  const prof = campusOccupancyInstantForMoncton(dt);
   const { flipsScale, trend } = churnFromTriple(prof.carsPrev, prof.carsCurr, prof.carsNext);
 
   const envR = process.env.SIM_OCCUPANCY != null ? Number(process.env.SIM_OCCUPANCY) : null;

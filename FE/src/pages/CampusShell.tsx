@@ -116,6 +116,8 @@ export function CampusShell() {
   const [nowcastingLiveApply, setNowcastingLiveApply] = useState(false);
   const [scenarioApplyError, setScenarioApplyError] = useState<string | null>(null);
   const applyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** When set to `scenarioKey(...)`, the debounced apply effect skips once (plan-driven apply already ran). */
+  const programmaticScenarioSkipDebounceRef = useRef<string | null>(null);
 
   useEffect(() => {
     try {
@@ -172,39 +174,68 @@ export function CampusShell() {
     }
   }, [simPaused]);
 
+  const performScenarioApply = useCallback(async (date: string, time: string) => {
+    setScenarioApplying(true);
+    setScenarioApplyError(null);
+    try {
+      await api.post("/api/parking-spots/apply-scenario", { date, time });
+      const spotsData = await api.get<ParkingSpot[]>("/api/parking-spots");
+      setSpots(spotsData);
+      const s = await api.get<SimulatorState>("/api/simulator");
+      setSimPaused(s.paused);
+      setSimMapMode(s.mapMode);
+      setScenarioSyncedKey(scenarioKey(date, time));
+    } catch (e) {
+      setScenarioSyncedKey(null);
+      setScenarioApplyError(e instanceof Error ? e.message : "apply-scenario failed");
+    } finally {
+      setScenarioApplying(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (mapDataMode !== "pick-time") return;
     if (!isValidScenarioDateYmd(mapScenarioDate) || !isValidScenarioTimeHm(mapScenarioTimeHHmm)) {
       return;
     }
+    const key = scenarioKey(mapScenarioDate, mapScenarioTimeHHmm);
+    if (programmaticScenarioSkipDebounceRef.current === key) {
+      programmaticScenarioSkipDebounceRef.current = null;
+      return;
+    }
     if (applyDebounceRef.current) clearTimeout(applyDebounceRef.current);
     applyDebounceRef.current = setTimeout(() => {
-      setScenarioApplying(true);
-      setScenarioApplyError(null);
-      void (async () => {
-        try {
-          await api.post("/api/parking-spots/apply-scenario", {
-            date: mapScenarioDate,
-            time: mapScenarioTimeHHmm,
-          });
-          const spotsData = await api.get<ParkingSpot[]>("/api/parking-spots");
-          setSpots(spotsData);
-          const s = await api.get<SimulatorState>("/api/simulator");
-          setSimPaused(s.paused);
-          setSimMapMode(s.mapMode);
-          setScenarioSyncedKey(scenarioKey(mapScenarioDate, mapScenarioTimeHHmm));
-        } catch (e) {
-          setScenarioSyncedKey(null);
-          setScenarioApplyError(e instanceof Error ? e.message : "apply-scenario failed");
-        } finally {
-          setScenarioApplying(false);
-        }
-      })();
+      void performScenarioApply(mapScenarioDate, mapScenarioTimeHHmm);
     }, 450);
     return () => {
       if (applyDebounceRef.current) clearTimeout(applyDebounceRef.current);
     };
-  }, [mapDataMode, mapScenarioDate, mapScenarioTimeHHmm]);
+  }, [mapDataMode, mapScenarioDate, mapScenarioTimeHHmm, performScenarioApply]);
+
+  const applyPlanPausedScenario = useCallback(
+    async (dateYmd: string, timeHHmm: string) => {
+      if (!isValidScenarioDateYmd(dateYmd) || !isValidScenarioTimeHm(timeHHmm)) return;
+      if (applyDebounceRef.current) {
+        clearTimeout(applyDebounceRef.current);
+        applyDebounceRef.current = null;
+      }
+      setMapDataMode("pick-time");
+      setMapScenarioDate(dateYmd);
+      setMapScenarioTimeHHmm(timeHHmm);
+      setScenarioApplyError(null);
+      try {
+        await api.post<SimulatorState>("/api/simulator", { mapMode: "scenario", paused: true });
+        setSimMapMode("scenario");
+        setSimPaused(true);
+      } catch {
+        /* still apply occupancy snapshot */
+      }
+      const key = scenarioKey(dateYmd, timeHHmm);
+      programmaticScenarioSkipDebounceRef.current = key;
+      await performScenarioApply(dateYmd, timeHHmm);
+    },
+    [performScenarioApply]
+  );
 
   useEffect(() => {
     const runLive = mapDataMode === "live" && !simPaused;
@@ -341,8 +372,9 @@ export function CampusShell() {
       lotSort,
       setLotSort,
       navigate,
+      applyPlanPausedScenario,
     }),
-    [token, planDate, sortedByLot, lotSort, navigate]
+    [token, planDate, sortedByLot, lotSort, navigate, applyPlanPausedScenario]
   );
 
   if (onHomeIndex && loading) {
