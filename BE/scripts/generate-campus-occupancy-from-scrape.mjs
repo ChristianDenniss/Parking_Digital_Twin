@@ -3,7 +3,7 @@
  * Writes: BE/data/pplOnCampusByTime.json
  *
  * Per slot: students in class + 1 instructor/section, non-teaching staff ranges (StaffData.md §5),
- * and estimated cars on campus (StudentData.md §2–5 + staff drive factors).
+ * and estimated cars on campus (StudentData.md §1 exact commuter share + §8 low/high for uncertain inputs).
  *
  * Run from repo root: node BE/scripts/generate-campus-occupancy-from-scrape.mjs
  */
@@ -19,21 +19,23 @@ const staffDataMdPath = join(root, "data", "StaffData.md");
 const studentDataMdPath = join(root, "data", "StudentData.md");
 const outputPath = join(root, "data", "pplOnCampusByTime.json");
 
+/** BE/data/StudentData.md §1 — 2,019 commuters / 2,319 enrolled; both scenarios use this. */
+const COMMUTER_RATE = 2019 / 2319;
+
 /**
- * Low / high vehicle scenarios from BE/data/StudentData.md §2–5 (commuter mode + carpool).
- * vehicles = commuters * (solo_rate + carpool_rate / carpool_size); commuters = enrolled * attendance * commuter_share.
+ * Low / high from StudentData.md §8. commuterShare is always COMMUTER_RATE (§1); only attendance + mode + carpool size vary.
  */
 const STUDENT_VEHICLE_SCENARIOS = {
   low: {
     attendance: 0.75,
-    commuterShare: 0.7,
+    commuterShare: COMMUTER_RATE,
     soloRate: 0.75,
     carpoolRate: 0.05,
     carpoolSize: 2.5,
   },
   high: {
     attendance: 0.85,
-    commuterShare: 0.8,
+    commuterShare: COMMUTER_RATE,
     soloRate: 0.85,
     carpoolRate: 0.15,
     carpoolSize: 2.0,
@@ -53,7 +55,6 @@ function studentVehiclesFromEnrolledInClass(enrolled) {
   };
 }
 
-/** Instructors teaching this slot: high solo-drive share (no separate doc table). */
 function instructorVehiclesLowHigh(instructorCount) {
   return {
     min: Math.round(instructorCount * 0.72),
@@ -61,7 +62,6 @@ function instructorVehiclesLowHigh(instructorCount) {
   };
 }
 
-/** Non-teaching staff on campus: not all drive; band ~58–88% bring a car. */
 function staffVehiclesLowHigh(staffMin, staffMax) {
   return {
     min: Math.round(staffMin * 0.58),
@@ -316,7 +316,7 @@ const out = {
     documentationFile: "BE/data/StudentData.md",
     filePresentAtGenerate: studentDataMdPresent,
     studentMethod:
-      "From totalEnrolledInClass: commuters = enrolled × attendance × commuter_share; vehicles = commuters × (solo_rate + carpool_rate / carpool_size). Low/high scenarios use §2–§5 range endpoints (see StudentData.md §8).",
+      "From totalEnrolledInClass: commuters = enrolled × attendance × (2019/2319) always; attendance/solo/carpool/carpool_size use §8 low/high endpoints (StudentData.md).",
     instructorMethod:
       "assumedInstructors × 0.72–0.93 vehicles (solo-heavy; approximate band).",
     nonTeachingStaffMethod:
@@ -344,7 +344,7 @@ const out = {
     scheduleGranularity:
       "Scrape times are weekly patterns (no separate Mon vs Tue); this series is one 24-hour profile for a typical weekday-style meeting pattern.",
     carsOnCampus:
-      "`carsOnCampusMin`/`Max` sum student-derived vehicles (StudentData.md), instructor band, and non-teaching staff vehicle band. Breakdown fields `carsFrom*` per group.",
+      "`carsOnCampusMin`/`Max` sum student-derived vehicles (StudentData.md §1 commuter share + §8 scenario endpoints), instructor band, and non-teaching staff vehicle band. `carsOnCampusMidpoint` is their average. Breakdown fields `carsFrom*` per group.",
   },
   winter2026: {
     term: "2026/WI",

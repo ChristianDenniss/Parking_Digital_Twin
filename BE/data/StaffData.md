@@ -6,7 +6,7 @@
 
 - Total UNB staff: ~3,200
 - UNB students: ~10,800–12,200
-- UNBSJ students: ~2,200–3,200
+- UNBSJ students (March 15 enrolment head count, paid and not paid): **2,319** total — graduate **158**, undergraduate **2,161**
 
 ### Assumption
 
@@ -14,7 +14,7 @@
 
 ### Calculation
 
-- UNBSJ share: 20–30%
+- UNBSJ share: **20–30%**
 - Staff estimate: 3,200 × (0.20–0.30) = **~650–950**
 
 ---
@@ -134,7 +134,8 @@ Estimated **vehicles** from non-teaching staff use `nonTeachingStaffOnCampusMin`
 
 ## 10. Model Characteristics
 
-- Range-based uncertainty handling
+- Range-based uncertainty handling (§5 drives Min/Max staff on campus in `pplOnCampusByTime.json`)
+- March 15 UNBSJ student head count in §1 is **institutional fact**; staff totals here remain estimates
 - Role-constrained overnight staffing
 - Hybrid-adjusted daytime presence
 - Time-block discretization
