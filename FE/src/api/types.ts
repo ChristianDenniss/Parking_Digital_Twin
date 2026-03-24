@@ -3,10 +3,27 @@ export interface ParkingLot {
   name: string;
   campus: string;
   capacity: number;
+
+  latitude?: number;
+  longitude?: number;
+
+  category?:
+    | "general"
+    | "resident"
+    | "staff"
+    | "phd"
+    | "timed"
+    | "accessible"
+    | "tbd";
+
+  sectionName?: string;
+
+  predictedFreeSpots?: number;
+  predictedOccupancyPercent?: number;
+
   imageUrl: string | null;
   createdAt: string;
 }
-
 /** Lot with distance and occupancy when requested with ?buildingId= (for "where to park" optimization). */
 export interface ParkingLotWithDistance extends ParkingLot {
   distanceMeters?: number;
