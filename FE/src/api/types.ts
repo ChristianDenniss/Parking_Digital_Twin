@@ -36,6 +36,10 @@ export interface Building {
   name: string;
   code: string | null;
   floors: number | null;
+
+  latitude?: number;
+  longitude?: number;
+
   createdAt?: string;
 }
 
@@ -43,7 +47,13 @@ export interface Building {
 export interface LotBuildingDistance {
   parkingLotId: string;
   buildingId: string;
+
   distanceMeters: number;
+
+  walkingTimeMinutes?: number;
+
+  pathPolyline?: string;
+
   parkingLot?: ParkingLot;
   building?: Building;
 }
@@ -51,13 +61,22 @@ export interface LotBuildingDistance {
 export interface ParkingSpot {
   id: string;
   parkingLotId: string;
+
   label: string;
   section: string;
   row: string;
   index: number;
-  /** 1-based order in lot SVG (spot layers). Enables 1:1 match by position. */
+
   slotIndex?: number | null;
+
+  category?: "general" | "accessible" | "staff" | "resident";
+
+  predictedFreeSoon?: boolean;
+
+  walkingDistanceToExitMeters?: number;
+
   currentStatus: "occupied" | "empty";
+
   updatedAt: string;
 }
 
@@ -125,4 +144,23 @@ export interface ScheduleEntry {
     capacity: number | null;
   } | null;
   studentsEnrolled: number;
+}
+export type PredictionMode =
+  | "live"
+  | "weekday"
+  | "weekend"
+  | "small_event"
+  | "medium_event"
+  | "large_event";
+export interface WhatIfScenarioRequest {
+  arrivalTime: string;
+  buildingId: string;
+
+  predictionMode: PredictionMode;
+
+  resident?: boolean;
+  disabled?: boolean;
+
+  preferClosest?: boolean;
+  preferAvailability?: boolean;
 }
