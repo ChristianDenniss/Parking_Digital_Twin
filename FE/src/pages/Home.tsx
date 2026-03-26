@@ -286,13 +286,15 @@ function DayParkingPlanCard(props: {
           <h2 id="day-parking-plan-heading" className="text-lg font-semibold text-slate-900">
             Your day parking plan
           </h2>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Pick a date to load your plan. Only <strong>initial arrival</strong> and{" "}
-            <strong>return &amp; park</strong> steps are clickable (they open the lot heat map with the suggested
-            stall highlighted). <strong>Between classes</strong> / stay-on-campus blocks are informational only. Long
-            gaps (&gt; 60 min, or the threshold shown below once loaded) assume you left campus and need to park
-            again.
-          </p>
+          {token ? (
+            <p className="text-sm text-slate-500 mt-1 max-w-2xl">
+              Pick a date to load your plan. Only <strong>initial arrival</strong> and{" "}
+              <strong>return &amp; park</strong> steps are clickable (they open the lot heat map with the suggested
+              stall highlighted). <strong>Between classes</strong> / stay-on-campus blocks are informational only. Long
+              gaps (&gt; 60 min, or the threshold shown below once loaded) assume you left campus and need to park
+              again.
+            </p>
+          ) : null}
         </div>
         {token ? (
           <div className="flex flex-wrap items-center gap-2">

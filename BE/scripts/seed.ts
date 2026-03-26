@@ -9,23 +9,20 @@ import { LotBuildingDistance } from "../src/modules/buildings/lotBuildingDistanc
 import * as parkingOccupancyAssign from "../src/modules/parkingSpots/parkingOccupancyAssign.service";
 
 /** Path to lot SVGs (DTProj/FE/src/images/svgs).
- * Seed reads data-spot-label from each file as source of truth.
+ * Seed reads stall `id="Row-###"` from each file (see parseSpotLayersFromSvg).
  *
  * seed.ts lives in `BE/scripts`, so `../../FE/...` resolves back to `DTProj/FE/...`.
  */
 const LOT_SVGS_DIR = path.join(__dirname, "../../FE/src/images/svgs");
 
-/** Spot layer = has data-spot-label and label does not contain "BG". Returns labels in document order (1:1 with SVG layers). */
+/** Stall ids in document order: `id="Row-###"` on each stall rect/path (same pattern as GeneralParking1/2 SVGs). */
 function parseSpotLayersFromSvg(svgContent: string): string[] {
-  // Primary format: data-spot-label="A-001"
-  // Fallback format (some uploaded SVGs): id="A-001"
-  const re = /(?:data-spot-label|id)="([^"]+)"/g;
+  const re = /\bid="([A-Za-z]+-\d+)"/g;
   const labels: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(svgContent)) !== null) {
     const label = m[1].trim();
     if (!label || /BG/i.test(label)) continue;
-    if (!/^[A-Za-z]+-\d+$/i.test(label)) continue;
     labels.push(label);
   }
   return labels;
