@@ -35,6 +35,7 @@ const SS_SCENARIO_DATE = "dt_home_scenarioDate";
 const SS_SCENARIO_TIME = "dt_home_scenarioTime";
 const SS_SCENARIO_SYNCED = "dt_home_scenarioSyncedKey";
 const POLL_INTERVAL_MS = 10_000;
+const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
 
 function readPersistedMapPrefs(): {
   mapDataMode: ParkingMapDataMode;
@@ -316,7 +317,11 @@ export function CampusShell() {
   useEffect(() => {
     api
       .get<{ tileUrl: string }>("/api/earth-engine/tiles")
-      .then((data) => setTileUrl(data.tileUrl))
+      .then((data) => {
+        const raw = data.tileUrl ?? "";
+        const resolved = raw.startsWith("/") && API_BASE ? `${API_BASE}${raw}` : raw;
+        setTileUrl(resolved);
+      })
       .catch((e) => setTileUrlError(e.message));
   }, []);
 
