@@ -46,7 +46,7 @@ function Nav() {
             Logs
             <img src={unbSymbol} alt="" className="h-4 w-4 shrink-0 invisible group-hover:visible group-[.active]:visible transition-[visibility]" aria-hidden />
           </NavLink>
-          <NavLink to="/api" className={linkClass}>
+          <NavLink to="/apispec" className={linkClass}>
             API
             <img src={unbSymbol} alt="" className="h-4 w-4 shrink-0 invisible group-hover:visible group-[.active]:visible transition-[visibility]" aria-hidden />
           </NavLink>
@@ -76,7 +76,7 @@ export default function App() {
           <Route path="lots" element={<Lots />} />
           <Route path="auth" element={<Auth />} />
           <Route path="logs" element={<Logs />} />
-          <Route path="api" element={<Api />} />
+          <Route path="apispec" element={<Api />} />
           <Route path="schedule" element={<Schedule />} />
         </Route>
       </Routes>

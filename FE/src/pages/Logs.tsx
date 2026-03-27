@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import type { ParkingSpotLog } from "../api/types";
 
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 30_000;
 
 export function Logs() {
   const [logs, setLogs] = useState<ParkingSpotLog[]>([]);

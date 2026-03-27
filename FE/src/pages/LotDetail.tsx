@@ -10,7 +10,7 @@ const lotSvgLoaders = import.meta.glob<string>("../images/svgs/*.svg", {
   query: "?raw",
   import: "default",
 }) as Record<string, () => Promise<string>>;
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 30_000;
 
 export function LotDetail() {
   const { id } = useParams<{ id: string }>();
@@ -192,7 +192,7 @@ export function LotDetail() {
         </div>
       )}
 
-      <p className="text-slate-500 text-sm mb-4">Live data updates every 10 seconds.</p>
+      <p className="text-slate-500 text-sm mb-4">Live data updates every 30 seconds.</p>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-2">
         {spotsForList.map((spot) => (
           <button

@@ -34,7 +34,7 @@ const SS_MAP_MODE = "dt_home_mapMode";
 const SS_SCENARIO_DATE = "dt_home_scenarioDate";
 const SS_SCENARIO_TIME = "dt_home_scenarioTime";
 const SS_SCENARIO_SYNCED = "dt_home_scenarioSyncedKey";
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 30_000;
 const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
 
 function readPersistedMapPrefs(): {
