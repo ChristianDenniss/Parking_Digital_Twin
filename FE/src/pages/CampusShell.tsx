@@ -228,6 +228,10 @@ export function CampusShell() {
   const applyPlanPausedScenario = useCallback(
     async (dateYmd: string, timeHHmm: string) => {
       if (!isValidScenarioDateYmd(dateYmd) || !isValidScenarioTimeHm(timeHHmm)) return;
+      const key = scenarioKey(dateYmd, timeHHmm);
+      // Mark skip before any async gap so the debounced effect cannot enqueue
+      // a second non-deterministic apply for this same programmatic scenario.
+      programmaticScenarioSkipDebounceRef.current = key;
       if (applyDebounceRef.current) {
         clearTimeout(applyDebounceRef.current);
         applyDebounceRef.current = null;
@@ -243,8 +247,6 @@ export function CampusShell() {
       } catch {
         /* still apply occupancy snapshot */
       }
-      const key = scenarioKey(dateYmd, timeHHmm);
-      programmaticScenarioSkipDebounceRef.current = key;
       await performScenarioApply(dateYmd, timeHHmm, { deterministic: true });
     },
     [performScenarioApply]
