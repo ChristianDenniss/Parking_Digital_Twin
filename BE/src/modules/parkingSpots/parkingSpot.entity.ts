@@ -37,7 +37,7 @@ export class ParkingSpot {
   @Column({ type: "text", default: "empty" })
   currentStatus!: "occupied" | "empty";
 
-  @UpdateDateColumn({ type: "datetime" })
+  @UpdateDateColumn()
   updatedAt!: Date;
 
   @ManyToOne(() => ParkingLot, (lot) => lot.spots, { onDelete: "CASCADE" })

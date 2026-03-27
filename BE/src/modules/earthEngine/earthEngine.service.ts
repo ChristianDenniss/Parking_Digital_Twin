@@ -73,11 +73,47 @@ function getCredentialsPath(): string {
   return defaultPath;
 }
 
+function loadCredentialsFromEnvJson(): object | null {
+  const raw = process.env.EARTH_ENGINE_SERVICE_ACCOUNT_JSON?.trim();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as object;
+  } catch (err) {
+    throw new Error(
+      `EARTH_ENGINE_SERVICE_ACCOUNT_JSON is not valid JSON: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
+}
+
+function loadCredentialsFromSplitEnv(): object | null {
+  const clientEmail = process.env.EARTH_ENGINE_CLIENT_EMAIL?.trim();
+  const privateKeyRaw = process.env.EARTH_ENGINE_PRIVATE_KEY;
+  if (!clientEmail || !privateKeyRaw) return null;
+  const privateKey = privateKeyRaw.replace(/\\n/g, "\n");
+  const projectId = process.env.EARTH_ENGINE_PROJECT_ID?.trim();
+  const privateKeyId = process.env.EARTH_ENGINE_PRIVATE_KEY_ID?.trim();
+  return {
+    type: "service_account",
+    client_email: clientEmail,
+    private_key: privateKey,
+    ...(projectId ? { project_id: projectId } : {}),
+    ...(privateKeyId ? { private_key_id: privateKeyId } : {}),
+  };
+}
+
 function loadCredentials(): object {
+  const envJson = loadCredentialsFromEnvJson();
+  if (envJson) return envJson;
+
+  const splitEnv = loadCredentialsFromSplitEnv();
+  if (splitEnv) return splitEnv;
+
   const credPath = getCredentialsPath();
   if (!fs.existsSync(credPath)) {
     throw new Error(
-      `Earth Engine credentials not found at ${credPath}. Set GOOGLE_APPLICATION_CREDENTIALS or EARTH_ENGINE_SERVICE_ACCOUNT_PATH, or place serviceAccount.json in BE/`
+      `Earth Engine credentials not found. Use EARTH_ENGINE_SERVICE_ACCOUNT_JSON, or EARTH_ENGINE_CLIENT_EMAIL + EARTH_ENGINE_PRIVATE_KEY, or set GOOGLE_APPLICATION_CREDENTIALS / EARTH_ENGINE_SERVICE_ACCOUNT_PATH to a file (tried ${credPath}).`
     );
   }
   const raw = fs.readFileSync(credPath, "utf-8");

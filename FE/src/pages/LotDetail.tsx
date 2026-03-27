@@ -10,6 +10,7 @@ const lotSvgLoaders = import.meta.glob<string>("../images/svgs/*.svg", {
   query: "?raw",
   import: "default",
 }) as Record<string, () => Promise<string>>;
+const POLL_INTERVAL_MS = 10_000;
 
 export function LotDetail() {
   const { id } = useParams<{ id: string }>();
@@ -43,13 +44,14 @@ export function LotDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Keep the heat map live: simulator flips statuses every 5s on the backend.
+  // Keep the heat map live with smart polling (skip while tab hidden/offline).
   // Poll the spot list so the UI updates even if the user never clicks a stall.
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
 
     const poll = () => {
+      if (cancelled || document.hidden || !navigator.onLine) return;
       api
         .get<ParkingSpot[]>(`/api/parking-lots/${id}/spots`)
         .then((spotsData) => {
@@ -60,11 +62,18 @@ export function LotDetail() {
         });
     };
 
+    const onResume = () => poll();
     poll();
-    const interval = window.setInterval(poll, 5000);
+    const interval = window.setInterval(poll, POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", onResume);
+    window.addEventListener("online", onResume);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onResume);
+      window.removeEventListener("online", onResume);
     };
   }, [id]);
 
@@ -183,7 +192,7 @@ export function LotDetail() {
         </div>
       )}
 
-      <p className="text-slate-500 text-sm mb-4">Live data updates every 5 seconds.</p>
+      <p className="text-slate-500 text-sm mb-4">Live data updates every 10 seconds.</p>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-2">
         {spotsForList.map((spot) => (
           <button

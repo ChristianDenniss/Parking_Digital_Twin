@@ -30,7 +30,7 @@ export class Student {
   @Column("integer", { nullable: true })
   year!: number | null;
 
-  @CreateDateColumn({ type: "datetime" })
+  @CreateDateColumn()
   createdAt!: Date;
 
   @OneToOne(() => User, (u) => u.student, { onDelete: "SET NULL" })

@@ -34,6 +34,7 @@ const SS_MAP_MODE = "dt_home_mapMode";
 const SS_SCENARIO_DATE = "dt_home_scenarioDate";
 const SS_SCENARIO_TIME = "dt_home_scenarioTime";
 const SS_SCENARIO_SYNCED = "dt_home_scenarioSyncedKey";
+const POLL_INTERVAL_MS = 10_000;
 
 function readPersistedMapPrefs(): {
   mapDataMode: ParkingMapDataMode;
@@ -266,10 +267,24 @@ export function CampusShell() {
     const runLive = mapDataMode === "live" && !simPaused;
     const runScenario = mapDataMode === "pick-time" && simMapMode === "scenario" && !simPaused;
     if (!runLive && !runScenario) return;
-    const id = window.setInterval(() => {
+    let cancelled = false;
+    const poll = () => {
+      if (cancelled || document.hidden || !navigator.onLine) return;
       api.get<ParkingSpot[]>("/api/parking-spots").then(setSpots).catch(() => {});
-    }, 5000);
-    return () => clearInterval(id);
+    };
+    const onResume = () => poll();
+    poll();
+    const id = window.setInterval(poll, POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", onResume);
+    window.addEventListener("online", onResume);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onResume);
+      window.removeEventListener("online", onResume);
+    };
   }, [mapDataMode, simPaused, simMapMode]);
 
   useEffect(() => {

@@ -1,7 +1,8 @@
 import "reflect-metadata";
 import path from "path";
 import express from "express";
-import { AppDataSource } from "./db/data-source";
+import cors from "cors";
+import { AppDataSource, DB_CONNECTION_SUMMARY } from "./db/data-source";
 import { initializeEarthEngine } from "./config/earthEngine";
 import { notFound, errorHandler, requestLogger, loggingMiddleware } from "./middleware";
 import { cacheHealthCheck } from "./middleware/cache";
@@ -20,12 +21,23 @@ import userRoute from "./modules/users/user.route";
 import earthEngineRoute from "./modules/earthEngine/earthEngine.route";
 
 const PORT = process.env.PORT || 3000;
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 async function main() {
   await AppDataSource.initialize();
+  console.log(`[db] Connected: ${DB_CONNECTION_SUMMARY}`);
   await initializeEarthEngine();
 
   const app = express();
+  app.use(
+    cors({
+      origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+      credentials: true,
+    })
+  );
   app.use(express.json());
   app.use(requestLogger);
   app.use(loggingMiddleware);

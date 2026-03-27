@@ -24,7 +24,7 @@ export class ParkingLot {
   @Column({ type: "text", nullable: true })
   imageUrl!: string | null;
 
-  @CreateDateColumn({ type: "datetime" })
+  @CreateDateColumn()
   createdAt!: Date;
 
   @OneToMany(() => ParkingSpot, (spot) => spot.parkingLot)

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import type { ParkingSpotLog } from "../api/types";
 
+const POLL_INTERVAL_MS = 10_000;
+
 export function Logs() {
   const [logs, setLogs] = useState<ParkingSpotLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -12,17 +14,29 @@ export function Logs() {
   const [timeTo, setTimeTo] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     const fetchLogs = () => {
+      if (cancelled || document.hidden || !navigator.onLine) return;
       api
         .get<ParkingSpotLog[]>("/api/parking-spot-logs")
         .then(setLogs)
         .catch((e) => setError(e.message))
         .finally(() => setLoading(false));
     };
+    const onResume = () => fetchLogs();
     setLoading(true);
     fetchLogs();
-    const interval = setInterval(fetchLogs, 5000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchLogs, POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", onResume);
+    window.addEventListener("online", onResume);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onResume);
+      window.removeEventListener("online", onResume);
+    };
   }, []);
 
   const statusOptions = useMemo(() => {

@@ -36,7 +36,7 @@ export class User {
   @Column({ type: "boolean", default: false })
   disabled!: boolean;
 
-  @CreateDateColumn({ type: "datetime" })
+  @CreateDateColumn()
   createdAt!: Date;
 
   @OneToOne(() => Student, (student) => student.user)

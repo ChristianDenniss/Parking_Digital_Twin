@@ -18,7 +18,7 @@ export class ParkingSpotLog {
   @Column({ type: "text" })
   status!: "occupied" | "empty";
 
-  @Column({ type: "datetime" })
+  @Column()
   recordedAt!: Date;
 
   @ManyToOne(() => ParkingSpot, (spot) => spot.logs, { onDelete: "CASCADE" })
