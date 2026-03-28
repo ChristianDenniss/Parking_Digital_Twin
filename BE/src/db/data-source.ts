@@ -2,6 +2,7 @@ import "dotenv/config";
 import "reflect-metadata";
 import { DataSource, type DataSourceOptions } from "typeorm";
 import path from "path";
+import { isLocalAppMode } from "../config/appMode";
 import { ParkingLot } from "../modules/parkingLots/parkingLot.entity";
 import { ParkingSpot } from "../modules/parkingSpots/parkingSpot.entity";
 import { ParkingSpotLog } from "../modules/parkingSpotLogs/parkingSpotLog.entity";
@@ -14,8 +15,10 @@ import { Building } from "../modules/buildings/building.entity";
 import { LotBuildingDistance } from "../modules/buildings/lotBuildingDistance.entity";
 
 const dbPath = path.join(__dirname, "..", "..", "data", "database.sqlite");
-const databaseUrl =
+const databaseUrlRaw =
   process.env.DATABASE_CONNECTION_STRING?.trim() || process.env.DATABASE_URL?.trim();
+/** Local mode always uses SQLite so .env can keep prod DB strings without affecting dev. */
+const databaseUrl = isLocalAppMode() ? undefined : databaseUrlRaw;
 const usePostgres = Boolean(databaseUrl);
 const postgresHost = (() => {
   if (!databaseUrl) return null;

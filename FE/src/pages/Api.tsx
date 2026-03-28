@@ -1,7 +1,8 @@
 import SwaggerUI from "swagger-ui-react";
 import "swagger-ui-react/swagger-ui.css";
+import { getApiBase } from "../config/apiBase";
 
-const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
+const API_BASE = getApiBase();
 const SPEC_URL = "/api/openapi.yaml";
 
 /** Full URL for the OpenAPI spec so Swagger UI can fetch it (same origin, so proxy works in dev). */
