@@ -10,14 +10,16 @@ npm install
 npm run dev
 ```
 
-Runs at **http://localhost:5173**. API requests are proxied to **http://localhost:3000** (start the BE first).
+Runs at **http://localhost:5173**. API requests under **`/api`** are proxied to **http://localhost:3000** (start the BE first). Override the proxy target with **`VITE_API_PROXY_TARGET`** if your API listens elsewhere.
 
-## Build
+## Build (e.g. Vercel)
 
 ```bash
 npm run build
-npm run preview   # serve dist/
+npm run preview   # serve dist/ locally
 ```
+
+On **Vercel**, set **`VITE_API_URL`** to your deployed API base URL (e.g. `https://your-app.fly.dev`). The production bundle uses that value for all API calls. The root **`README.md`** describes the full Fly + Vercel + Supabase layout.
 
 ## What’s in the MVP
 
@@ -28,4 +30,11 @@ npm run preview   # serve dist/
 
 ## Env
 
-- `VITE_API_URL` — Base URL for API (default: empty = same origin; with proxy you don’t need it).
+| Variable | When it applies | Purpose |
+|----------|------------------|---------|
+| **`VITE_API_URL`** | **Production build** (`npm run build` / Vercel) | Base URL of the API (e.g. Fly app). Required for the deployed site to reach the backend. |
+| **`VITE_API_URL`** | **Development** | Ignored unless **`VITE_DEV_REMOTE_API=true`**. Default dev behavior uses same-origin **`/api/...`** and Vite’s proxy to localhost (no CORS). |
+| **`VITE_DEV_REMOTE_API`** | Development only | Set to **`true`** to use **`VITE_API_URL`** from dev (e.g. test against Fly without a local BE). |
+| **`VITE_API_PROXY_TARGET`** | Development only | Where the dev server proxies **`/api`** (default **`http://localhost:3000`**). |
+
+See `src/config/apiBase.ts` for the exact rules.

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { matchPath, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { getApiBase } from "../config/apiBase";
 import { api } from "../api/client";
 import type { ParkingLot, ParkingSpot, SimulatorState } from "../api/types";
 import { ParkingMap, type ParkingMapDataMode } from "../components/ParkingMap";
@@ -35,7 +36,7 @@ const SS_SCENARIO_DATE = "dt_home_scenarioDate";
 const SS_SCENARIO_TIME = "dt_home_scenarioTime";
 const SS_SCENARIO_SYNCED = "dt_home_scenarioSyncedKey";
 const POLL_INTERVAL_MS = 30_000;
-const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
+const API_BASE = getApiBase();
 
 function readPersistedMapPrefs(): {
   mapDataMode: ParkingMapDataMode;

@@ -3,6 +3,7 @@ import path from "path";
 import express from "express";
 import cors from "cors";
 import { AppDataSource, DB_CONNECTION_SUMMARY } from "./db/data-source";
+import { getAppMode, isLocalAppMode } from "./config/appMode";
 import { initializeEarthEngine } from "./config/earthEngine";
 import { notFound, errorHandler, requestLogger, loggingMiddleware } from "./middleware";
 import { cacheHealthCheck } from "./middleware/cache";
@@ -22,27 +23,19 @@ import earthEngineRoute from "./modules/earthEngine/earthEngine.route";
 
 const PORT = process.env.PORT || 3000;
 
-const LOCAL_DEV_ORIGINS = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:5174",
-  "http://127.0.0.1:5174",
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-];
-
 const fromEnv = (process.env.CORS_ALLOWED_ORIGINS ?? "")
   .split(",")
   .map((s) => s.trim())
   .map((s) => s.replace(/\/+$/, ""))
   .filter(Boolean);
 
-const allowedOrigins =
-  process.env.NODE_ENV === "production"
-    ? fromEnv
-    : Array.from(new Set([...fromEnv, ...LOCAL_DEV_ORIGINS]));
-
 async function main() {
+  const mode = getAppMode();
+  const local = isLocalAppMode();
+  console.log(
+    `[app] APP_MODE=${mode}${local ? " (SQLite file, permissive CORS)" : " (CORS from CORS_ALLOWED_ORIGINS; Postgres if configured)"}`
+  );
+
   await AppDataSource.initialize();
   console.log(`[db] Connected: ${DB_CONNECTION_SUMMARY}`);
   await initializeEarthEngine();
@@ -50,12 +43,13 @@ async function main() {
   const app = express();
   app.use(
     cors({
-      origin:
-        allowedOrigins.length > 0
+      origin: local
+        ? true
+        : fromEnv.length > 0
           ? (origin, callback) => {
               if (!origin) return callback(null, true);
               const normalized = origin.replace(/\/+$/, "");
-              if (allowedOrigins.includes(normalized)) return callback(null, true);
+              if (fromEnv.includes(normalized)) return callback(null, true);
               return callback(new Error(`CORS blocked for origin: ${origin}`));
             }
           : true,
