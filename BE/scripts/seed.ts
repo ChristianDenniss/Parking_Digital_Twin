@@ -100,13 +100,13 @@ async function seed() {
   // - if an SVG exists in FE/src/images/svgs/{LotName}.svg, the real capacity and spots come from the SVG (one spot per data-spot-label).
   // - if no SVG exists, capacity is used to generate fallback A-J rows.
   const lotsConfig: readonly { name: string; capacity: number }[] = [
-    { name: "StaffParking1", capacity: 148 },
-    { name: "GeneralParking1", capacity: 119 },
-    { name: "GeneralParking2", capacity: 200 },
-    { name: "GeneralParking3", capacity: 200 },
+    { name: "StaffParking1", capacity: 170 },
+    { name: "GeneralParking1", capacity: 118 },
+    { name: "GeneralParking2", capacity: 199 },
+    { name: "GeneralParking3", capacity: 313 },
     { name: "TimedParking1", capacity: 17 },
-    { name: "GeneralParking4", capacity: 342 },
-    { name: "TimedParking2", capacity: 27 },
+    { name: "GeneralParking4", capacity: 335 },
+    { name: "TimedParking2", capacity: 25 },
     { name: "StaffParking2", capacity: 6 },
     { name: "ResidentParking1", capacity: 20 },
     { name: "ResidentParking2", capacity: 23 },
@@ -115,7 +115,7 @@ async function seed() {
     { name: "PHDParking1", capacity: 17 },
     { name: "GeneralParking5", capacity: 24 },
     { name: "StaffParking4", capacity: 10 },
-    { name: "ResidentParking3", capacity: 22 },
+    { name: "ResidentParking3", capacity: 21 },
   ];
 
   const lots: ParkingLot[] = [];
