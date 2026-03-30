@@ -6,11 +6,11 @@ Digital twin for campus parking at UNB Saint John. Right now we’re on the MVP:
 
 ---
 
-## Deployment (current setup)
+## Deployment (My current setup)
 
 | Piece | Where it runs | Notes |
 |--------|----------------|--------|
-| **Frontend** | **Vercel** | Static build; must set **`VITE_API_URL`** at build time to your Fly API base (trailing slash optional). |
+| **Frontend** | **Vercel** | Static build; must set **`VITE_API_URL`** at build time to the Fly API base |
 | **Backend** | **Fly.io** | Node process; set **`APP_MODE=production`** (Fly secret or env), **`DATABASE_URL`** or **`DATABASE_CONNECTION_STRING`** (Supabase Postgres), **`CORS_ALLOWED_ORIGINS`** (your Vercel app URL(s), comma-separated), plus auth/JWT secrets as needed. |
 | **Database** | **Supabase** (Postgres) | Used when the backend is in **production** mode and a DB URL is configured. |
 | **Cache (Redis)** | **Not wired in prod yet (planned)** | The backend already supports optional caching via **`REDIS_URL`** (`BE/src/utils/cache.ts`). If unset, the app runs with **caching disabled** (warning in logs). When you add Redis (e.g. **Upstash**, **Fly Redis**, or Docker locally), set **`REDIS_URL`** on Fly and redeploy; use the same variable in **`BE/.env`** for local testing. Health: **`GET /api/cache/health`**. |
