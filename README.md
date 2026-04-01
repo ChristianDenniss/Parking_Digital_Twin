@@ -1,8 +1,6 @@
 # UNB Saint John Parking Digital Twin
 
-Digital twin for campus parking at UNB Saint John. Right now we’re on the MVP: simulated per-spot data (fake sensors), historical proxy data for training, plus students and classes so we can tie usage to schedules later.
-
-**BE** is in `BE/`, **FE** is in `FE/`. API and data shapes are in `BE/openapi.yaml`. Design (Figma) and SVG export notes are in **`docs/figma.md`**.
+Digital twin for campus parking at UNB Saint John. Right now we’re actively updating the MVP to work towards a real application, we have simulated per-spot data (fake sensors), historical proxy data for training, plus students and classes so we can tie parking usage to schedules and assumptions.
 
 ---
 
@@ -95,7 +93,7 @@ The service account **must be registered as a user** in your Google Earth Engine
 
 ---
 
-## Running the frontend (MVP)
+## Running the frontend
 
 ```bash
 cd FE
