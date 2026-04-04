@@ -196,6 +196,16 @@ export type DayArrivalSegment =
       occupancyScenario: OccupancyScenarioClock;
     };
 
+/** POST /api/parking-lots/recommendation */
+export interface BuildingParkingRecommendationResponse {
+  lot: ParkingLot;
+  spot: ParkingSpot;
+  distanceMeters: number;
+  freeSpotsInSelectedLot: number;
+  occupancyPercent: number;
+  evaluatedMode: "current" | "predicted";
+}
+
 export interface DayArrivalPlanResponse {
   selectedDate: string;
   /** Catalog term codes used for this plan (e.g. Winter 2026 as `2026/WI`). */

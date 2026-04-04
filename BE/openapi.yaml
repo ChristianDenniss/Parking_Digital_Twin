@@ -1797,6 +1797,9 @@ components:
           type: number
         freeSpotsInSelectedLot:
           type: integer
+        occupancyPercent:
+          type: integer
+          description: Approximate lot fullness (0–100) from capacity and free count for the evaluated mode
         evaluatedMode:
           type: string
           enum: [current, predicted]

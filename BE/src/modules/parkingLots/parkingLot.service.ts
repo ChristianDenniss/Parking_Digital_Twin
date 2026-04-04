@@ -97,6 +97,7 @@ export async function recommendBestParking(params: {
   spot: ParkingSpot;
   distanceMeters: number;
   freeSpotsInSelectedLot: number;
+  occupancyPercent: number;
   evaluatedMode: "current" | "predicted";
 } | null> {
   const rankedLots = await findRecommendationsByBuilding(params.buildingId);
@@ -137,11 +138,22 @@ export async function recommendBestParking(params: {
 
     if (freeSpotsInSelectedLot <= 0) continue;
 
+    const capacity = ranked.lot.capacity;
+    const occupancyPercent =
+      capacity > 0
+        ? Math.round((1 - freeSpotsInSelectedLot / capacity) * 100)
+        : spots.length > 0
+          ? Math.round(
+              (spots.reduce((n, s) => n + (isSpotEmpty(s) ? 0 : 1), 0) / spots.length) * 100
+            )
+          : 0;
+
     return {
       lot: ranked.lot,
       spot: candidateSpot,
       distanceMeters: ranked.distanceMeters,
       freeSpotsInSelectedLot,
+      occupancyPercent,
       evaluatedMode: params.stateMode,
     };
   }

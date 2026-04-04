@@ -70,6 +70,7 @@ export async function recommend(req: Request, res: Response) {
     spot: recommendation.spot,
     distanceMeters: recommendation.distanceMeters,
     freeSpotsInSelectedLot: recommendation.freeSpotsInSelectedLot,
+    occupancyPercent: recommendation.occupancyPercent,
     evaluatedMode: recommendation.evaluatedMode,
   });
 }
