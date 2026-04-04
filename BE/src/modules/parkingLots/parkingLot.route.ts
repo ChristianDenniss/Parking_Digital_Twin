@@ -5,16 +5,8 @@ import { optionalAuth } from "../../middleware/auth";
 
 const router = Router();
 
-router.post(
-  "/recommendation",
-  optionalAuth,
-  cacheMiddleware({
-    prefix: "parking-lots-recommendation",
-    ttlSeconds: 15,
-    key: (req) => `POST:/api/parking-lots/recommendation:${JSON.stringify(req.body ?? {})}`,
-  }),
-  controller.recommend
-);
+// Not cached: recommendation depends on live spot occupancy; caching returned stale lots/spots.
+router.post("/recommendation", optionalAuth, controller.recommend);
 router.get("/", cacheMiddleware({ prefix: "parking-lots", ttlSeconds: 60 }), controller.list);
 router.get(
   "/:id",

@@ -410,6 +410,11 @@ export function CampusShell() {
     });
   }, [lots, spots]);
 
+  const parkingOccupancySignature = useMemo(
+    () => spots.map((s) => `${s.id}:${s.currentStatus}`).join("|"),
+    [spots]
+  );
+
   const sortedByLot = useMemo(() => {
     const sorted = [...byLot];
     switch (lotSort) {
@@ -435,6 +440,8 @@ export function CampusShell() {
       lotSort,
       setLotSort,
       navigate,
+      mapDataMode,
+      parkingOccupancySignature,
       applyPlanPausedScenario,
       applyPlanScenarioIfChanged,
       setDayPlanMapLoading,
@@ -446,6 +453,8 @@ export function CampusShell() {
       sortedByLot,
       lotSort,
       navigate,
+      mapDataMode,
+      parkingOccupancySignature,
       applyPlanPausedScenario,
       applyPlanScenarioIfChanged,
       setDayPlanMapLoading,
