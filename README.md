@@ -4,6 +4,14 @@ Digital twin for campus parking at UNB Saint John. Right now we’re actively up
 
 ---
 
+## Presentation (PowerPoint)
+
+Slides for the project live in PowerPoint for the web: [open the presentation](https://powerpoint.cloud.microsoft/open/onedrive/?docId=3C4EFB58D9BD8FF5%21s461b1c1356bb48909f39bbbd3c85b2db&driveId=3C4EFB58D9BD8FF5).
+
+They downloaded ppt file is also available at  **`docs/CS4555.pptx`**.
+
+---
+
 ## Deployment (My current setup)
 
 | Piece | Where it runs | Notes |
