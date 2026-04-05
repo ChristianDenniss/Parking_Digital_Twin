@@ -6,7 +6,6 @@ import { getAppMode } from "../../config/appMode";
 const ee = require("@google/earthengine") as {
   Image: (id: string) => {
     getMap: (params: object, callback: (r: MapIdResult) => void) => void;
-    getThumbURL: (params: object, callback: (url: string) => void) => void;
     visualize: (params: object) => {
       blend: (other: unknown) => { getMap: (params: object, callback: (r: MapIdResult) => void) => void };
     };
@@ -229,7 +228,7 @@ export async function getMapIdCached(
  * @param imageAssetId - e.g. "CGIAR/SRTM90_V4" or "USGS/SRTMGL1_003"
  * @param visParams - optional min/max, palette, etc.
  */
-export function getMapId(
+function getMapId(
   imageAssetId: string,
   visParams?: { min?: number; max?: number; palette?: string; bands?: string[] }
 ): Promise<MapIdResult> {
@@ -250,7 +249,7 @@ export function getMapId(
  * UNBSJ composite: TIFF image + parking section polygons (yellow outline, transparent fill).
  * Building POIs are drawn client-side from GET /api/buildings/map-markers/geojson (like section hover).
  */
-export function getMapIdForUnbsj(): Promise<MapIdResult> {
+function getMapIdForUnbsj(): Promise<MapIdResult> {
   return new Promise((resolve, reject) => {
     ensureInitialized()
       .then(() => {
@@ -522,37 +521,4 @@ export async function fetchTile(
   }
 
   return { buffer, contentType };
-}
-
-/**
- * Get a thumbnail URL for an Earth Engine image (static PNG/JPG).
- * The URL is temporary and can be used as img src or fetched server-side.
- */
-export function getThumbURL(
-  imageAssetId: string,
-  options: {
-    dimensions?: string;
-    region?: number[][] | object;
-    format?: "png" | "jpg";
-    min?: number;
-    max?: number;
-    bands?: string[];
-  } = {}
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    ensureInitialized()
-      .then(() => {
-        const image = ee.Image(imageAssetId);
-        const params = {
-          dimensions: options.dimensions || "512x512",
-          format: options.format || "png",
-          ...(options.region && { region: options.region }),
-          ...(options.min !== undefined && { min: options.min }),
-          ...(options.max !== undefined && { max: options.max }),
-          ...(options.bands && { bands: options.bands }),
-        };
-        image.getThumbURL(params, (url: string) => resolve(url));
-      })
-      .catch(reject);
-  });
 }

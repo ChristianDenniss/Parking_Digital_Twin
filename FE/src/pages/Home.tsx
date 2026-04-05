@@ -20,6 +20,43 @@ function formatLocalTime(iso: string): string {
   });
 }
 
+/** Same rules as map / forecast: valid calendar date for scenario picker. */
+function isValidMapScenarioDateYmd(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T12:00:00`);
+  return !Number.isNaN(d.getTime());
+}
+
+function isValidMapScenarioTimeHm(s: string): boolean {
+  const m = s.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return false;
+  const h = parseInt(m[1]!, 10);
+  const min = parseInt(m[2]!, 10);
+  return h >= 0 && h <= 23 && min >= 0 && min <= 59;
+}
+
+/**
+ * Interpret map "Pick time" date + time in the browser's local timezone (matches `<input type="date|time">`).
+ * Returned instant is the deadline for being at the building (floor chosen separately).
+ */
+function parseMapScenarioDeadlineLocal(dateYmd: string, timeHHmm: string): Date | null {
+  if (!isValidMapScenarioDateYmd(dateYmd) || !isValidMapScenarioTimeHm(timeHHmm)) return null;
+  const tm = timeHHmm.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!tm) return null;
+  const h = parseInt(tm[1]!, 10);
+  const min = tm[2]!;
+  const d = new Date(`${dateYmd}T${String(h).padStart(2, "0")}:${min}:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function sameLocalCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
 function spotLabel(spot: ParkingSpot): string {
   if (spot.label?.trim()) return spot.label.trim();
   return `${spot.section} ${spot.row} #${spot.index}`;
@@ -102,6 +139,8 @@ function DayParkingPlanCard(props: {
   scrollCampusMapIntoView: () => void;
   navigate: NavigateFunction;
   mapDataMode: ParkingMapDataMode;
+  mapScenarioDate: string;
+  mapScenarioTimeHHmm: string;
   parkingOccupancySignature: string;
 }) {
   const {
@@ -113,6 +152,8 @@ function DayParkingPlanCard(props: {
     scrollCampusMapIntoView,
     navigate,
     mapDataMode,
+    mapScenarioDate,
+    mapScenarioTimeHHmm,
     parkingOccupancySignature,
   } = props;
   const [planPanelMode, setPlanPanelMode] = useState<PlanPanelMode>("schedule");
@@ -401,6 +442,19 @@ function DayParkingPlanCard(props: {
       ? Math.min(15, Math.round(buildingRec.occupancyPercent * REC_CONGESTION_OCCUPANCY_SCALE))
       : 0;
 
+  const buildingTravelTotalMinutes =
+    buildingWalkMinutes + buildingInBuildingMinutes + buildingCongestionMinutes;
+
+  const mapScenarioDeadlineLocal = useMemo(() => {
+    if (mapDataMode !== "pick-time") return null;
+    return parseMapScenarioDeadlineLocal(mapScenarioDate, mapScenarioTimeHHmm);
+  }, [mapDataMode, mapScenarioDate, mapScenarioTimeHHmm]);
+
+  const buildingParkedByForScenario = useMemo(() => {
+    if (!mapScenarioDeadlineLocal || !buildingRec) return null;
+    return new Date(mapScenarioDeadlineLocal.getTime() - buildingTravelTotalMinutes * 60_000);
+  }, [mapScenarioDeadlineLocal, buildingRec, buildingTravelTotalMinutes]);
+
   const openBuildingLotMap = (href: string) => {
     scrollCampusMapIntoView();
     navigate(href);
@@ -550,7 +604,9 @@ function DayParkingPlanCard(props: {
               lots are skipped unless you are staff). Uses{" "}
               <strong>{mapDataMode === "live" ? "live" : "scenario"}</strong> occupancy—the same snapshot as the campus
               map—and re-checks whenever spot data updates (about every 30 seconds while this page is open and the tab is
-              visible).
+              visible). With <strong>Pick time</strong> on the map, the chosen date and time are treated as when you want
+              to be <strong>at this building</strong> (selected floor); we suggest when to <strong>be parked</strong> at
+              the stall using the same walk / in-building / congestion model as the class plan.
             </p>
             {!token ? (
               <p className="text-xs text-slate-500 mt-2">
@@ -636,14 +692,67 @@ function DayParkingPlanCard(props: {
                 className="block rounded-lg border border-slate-200 bg-slate-50/80 p-4 space-y-2 transition-colors hover:border-unb-red/50 hover:bg-white focus-visible:outline focus-visible:ring-2 focus-visible:ring-unb-red focus-visible:ring-offset-2"
                 aria-label={`Open ${buildingRec.lot.name} map and highlight spot ${spotLabel(buildingRec.spot)}`}
               >
-                <p className="text-xs font-semibold uppercase tracking-wide text-unb-red">Suggested parking</p>
+                <p className="w-fit rounded-full border border-unb-red/25 bg-unb-red/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide leading-tight text-unb-red">
+                  Suggested parking
+                </p>
                 <p className="text-sm text-slate-800">
                   Destination: <strong>{selectedBuilding.name}</strong>, floor <strong>{selectedFloor}</strong>
                 </p>
-                <p className="text-sm text-slate-700">
-                  Park in <strong>{buildingRec.lot.name}</strong>, stall{" "}
-                  <strong>{spotLabel(buildingRec.spot)}</strong> (~{Math.round(buildingRec.distanceMeters)} m walk to the
-                  building).
+                {mapDataMode === "pick-time" && mapScenarioDeadlineLocal && buildingParkedByForScenario ? (
+                  <>
+                    <p className="text-sm font-medium text-unb-red">
+                      <span className="font-semibold">Be parked by </span>
+                      {!sameLocalCalendarDay(buildingParkedByForScenario, mapScenarioDeadlineLocal) ? (
+                        <strong>
+                          {buildingParkedByForScenario.toLocaleDateString(undefined, {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}{" "}
+                        </strong>
+                      ) : null}
+                      <span className="font-semibold tabular-nums">
+                        {formatLocalTime(buildingParkedByForScenario.toISOString())}
+                      </span>
+                      <span>
+                        {" "}
+                        local time to reach <strong>{selectedBuilding.name}</strong> (floor {selectedFloor}) by{" "}
+                        <strong className="tabular-nums">
+                          {formatLocalTime(mapScenarioDeadlineLocal.toISOString())}
+                        </strong>{" "}
+                        on{" "}
+                        <strong>
+                          {mapScenarioDeadlineLocal.toLocaleDateString(undefined, {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </strong>
+                        .
+                      </span>
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      Allow ~<strong>{buildingTravelTotalMinutes}</strong> min (walk ~{buildingWalkMinutes}, in-building
+                      ~{buildingInBuildingMinutes}, lot congestion ~{buildingCongestionMinutes}).
+                    </p>
+                  </>
+                ) : mapDataMode === "pick-time" && !mapScenarioDeadlineLocal ? (
+                  <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    Set a full <strong>date</strong> and <strong>time</strong> on the campus map (<strong>Pick time</strong>
+                    ) to see when to be parked for that arrival at the building.
+                  </p>
+                ) : null}
+                <p className="text-sm">
+                  <span className="font-medium text-unb-red">
+                    Park in <strong>{buildingRec.lot.name}</strong>, stall{" "}
+                    <strong>{spotLabel(buildingRec.spot)}</strong>
+                  </span>
+                  <span className="text-slate-600">
+                    {" "}
+                    (~{Math.round(buildingRec.distanceMeters)} m walk to the building).
+                  </span>
                 </p>
                 <p className="text-sm text-slate-600">
                   About <strong>{buildingRec.freeSpotsInSelectedLot}</strong> free stalls in this lot right now; lot
@@ -719,6 +828,8 @@ export function HomeIndexContent() {
         scrollCampusMapIntoView={scrollCampusMapIntoView}
         navigate={navigate}
         mapDataMode={mapDataMode}
+        mapScenarioDate={mapScenarioDate}
+        mapScenarioTimeHHmm={mapScenarioTimeHHmm}
         parkingOccupancySignature={parkingOccupancySignature}
       />
 

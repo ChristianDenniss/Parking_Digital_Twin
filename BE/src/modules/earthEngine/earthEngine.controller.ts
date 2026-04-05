@@ -28,52 +28,6 @@ export async function getTileUrl(req: Request, res: Response) {
 }
 
 /**
- * GET /api/earth-engine/thumbnail
- * Query: asset (required, e.g. "USGS/SRTMGL1_003"), dimensions (optional, e.g. "1024x1024"), format (optional, png|jpg)
- * Returns: redirect to the temporary thumbnail URL (PNG/JPG from Earth Engine).
- */
-export async function getThumbnail(req: Request, res: Response) {
-  const asset = (req.query.asset as string)?.trim();
-  if (!asset) {
-    return res.status(400).json({ error: "Query parameter 'asset' is required (e.g. USGS/SRTMGL1_003)" });
-  }
-  try {
-    const dimensions = (req.query.dimensions as string) || "512x512";
-    const format = (req.query.format as string) === "jpg" ? "jpg" : "png";
-    const url = await earthEngineService.getThumbURL(asset, { dimensions, format });
-    return res.redirect(302, url);
-  } catch (err) {
-    console.error("Earth Engine thumbnail error:", err);
-    return res.status(502).json({
-      error: err instanceof Error ? err.message : "Failed to get Earth Engine thumbnail",
-    });
-  }
-}
-
-/**
- * GET /api/earth-engine/mapid
- * Query: asset (required), min, max (optional visualization params)
- * Returns: { mapid, token } for use with map tiles (e.g. Google Maps overlay).
- */
-export async function getMapId(req: Request, res: Response) {
-  const asset = (req.query.asset as string)?.trim();
-  if (!asset) {
-    return res.status(400).json({ error: "Query parameter 'asset' is required" });
-  }
-  try {
-    const min = req.query.min != null ? Number(req.query.min) : undefined;
-    const max = req.query.max != null ? Number(req.query.max) : undefined;
-    const result = await earthEngineService.getMapId(asset, { min, max });
-    return res.json(result);
-  } catch (err) {
-    console.error("Earth Engine getMapId error:", err);
-    return res.status(502).json({
-      error: err instanceof Error ? err.message : "Failed to get Earth Engine map ID",
-    });
-  }
-}
-
-/**
  * GET /api/earth-engine/tiles/:z/:x/:y
  * Query: asset (required). Optional: min, max (visualization).
  * Returns: tile image (PNG) proxied from Earth Engine; mapid/token stay on server.
