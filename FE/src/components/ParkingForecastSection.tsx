@@ -309,9 +309,27 @@ export function ParkingForecastSection(props: {
       </div>
 
       {loading && (
-        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-pulse" aria-busy="true">
-          <div className="h-24 bg-slate-200 rounded" />
-          <div className="h-24 bg-slate-200 rounded" />
+        <div className="mt-2 space-y-2" aria-busy="true">
+          <span className="sr-only">Loading parking forecast model</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="rounded border border-slate-100 bg-slate-50/90 p-2.5 space-y-2">
+              <div className="skeleton h-3 w-32 rounded" />
+              <div className="skeleton h-3 w-full rounded" />
+              <div className="skeleton h-3 w-[min(100%,18rem)] rounded" />
+            </div>
+            <div className="rounded border border-slate-100 bg-slate-50/90 p-2.5 space-y-2">
+              <div className="skeleton h-3 w-36 rounded" />
+              <div className="skeleton h-3 w-full rounded" />
+              <div className="skeleton h-3 w-[min(100%,14rem)] rounded" />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+            <div className="skeleton h-5 w-20 rounded border border-slate-200" />
+            <div className="skeleton h-3 flex-1 min-w-[10rem] max-w-md rounded" />
+          </div>
+          <div className="pt-2 border-t border-slate-200">
+            <div className="skeleton h-3 w-44 rounded" />
+          </div>
         </div>
       )}
 

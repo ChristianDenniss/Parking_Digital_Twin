@@ -506,7 +506,24 @@ function DayParkingPlanCard(props: {
               Select a date above to load your parking plan for that day.
             </p>
           ) : planLoading ? (
-            <p className="text-sm text-slate-500">Building your plan…</p>
+            <div className="space-y-3" aria-busy="true">
+              <span className="sr-only">Building your parking plan</span>
+              <div className="skeleton h-3 w-48 max-w-full rounded" />
+              <ol className="space-y-3 list-none p-0 m-0">
+                {[0, 1].map((i) => (
+                  <li
+                    key={i}
+                    className="rounded-lg border border-slate-200 bg-slate-50/80 p-4 space-y-2"
+                  >
+                    <div className="skeleton h-3 w-40 max-w-[85%] rounded" />
+                    <div className="skeleton h-4 w-full max-w-md rounded" />
+                    <div className="skeleton h-3 w-full rounded" />
+                    <div className="skeleton h-3 w-[min(28rem,100%)] rounded" />
+                  </li>
+                ))}
+              </ol>
+              <div className="skeleton h-3 w-64 max-w-full rounded" />
+            </div>
           ) : planError ? (
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               {planError}
@@ -542,46 +559,59 @@ function DayParkingPlanCard(props: {
             ) : null}
           </div>
 
-          {buildingsLoading ? <p className="text-sm text-slate-500">Loading buildings…</p> : null}
           {buildingsError ? (
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               {buildingsError}
             </p>
           ) : null}
 
-          <div className="flex flex-wrap gap-4 items-end">
-            <label className="text-sm text-slate-600 flex flex-col gap-1 min-w-[12rem]">
-              Building
-              <select
-                value={selectedBuildingId}
-                onChange={(e) => setSelectedBuildingId(e.target.value)}
-                className="rounded border border-slate-200 px-2 py-1.5 text-slate-800 text-sm bg-white"
-              >
-                <option value="">Select a building</option>
-                {buildings.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                    {b.code ? ` (${b.code})` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm text-slate-600 flex flex-col gap-1 min-w-[8rem]">
-              Floor
-              <select
-                value={selectedFloor}
-                onChange={(e) => setSelectedFloor(parseInt(e.target.value, 10))}
-                disabled={!selectedBuildingId}
-                className="rounded border border-slate-200 px-2 py-1.5 text-slate-800 text-sm bg-white disabled:opacity-50"
-              >
-                {Array.from({ length: maxFloor }, (_, i) => i + 1).map((f) => (
-                  <option key={f} value={f}>
-                    {f}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          {buildingsLoading ? (
+            <div className="flex flex-wrap gap-4 items-end" aria-busy="true">
+              <span className="sr-only">Loading building list</span>
+              <div className="flex flex-col gap-1 min-w-[12rem] flex-1 max-w-xs">
+                <div className="skeleton h-3.5 w-16 rounded" />
+                <div className="skeleton h-9 w-full rounded-md border border-slate-200" />
+              </div>
+              <div className="flex flex-col gap-1 min-w-[8rem] max-w-[10rem]">
+                <div className="skeleton h-3.5 w-10 rounded" />
+                <div className="skeleton h-9 w-full rounded-md border border-slate-200" />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-4 items-end">
+              <label className="text-sm text-slate-600 flex flex-col gap-1 min-w-[12rem]">
+                Building
+                <select
+                  value={selectedBuildingId}
+                  onChange={(e) => setSelectedBuildingId(e.target.value)}
+                  className="rounded border border-slate-200 px-2 py-1.5 text-slate-800 text-sm bg-white"
+                >
+                  <option value="">Select a building</option>
+                  {buildings.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                      {b.code ? ` (${b.code})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm text-slate-600 flex flex-col gap-1 min-w-[8rem]">
+                Floor
+                <select
+                  value={selectedFloor}
+                  onChange={(e) => setSelectedFloor(parseInt(e.target.value, 10))}
+                  disabled={!selectedBuildingId}
+                  className="rounded border border-slate-200 px-2 py-1.5 text-slate-800 text-sm bg-white disabled:opacity-50"
+                >
+                  {Array.from({ length: maxFloor }, (_, i) => i + 1).map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
 
           {!selectedBuildingId ? (
             <p className="text-sm text-slate-600 border border-dashed border-slate-200 rounded-lg px-4 py-6 text-center bg-slate-50/80">
@@ -627,7 +657,17 @@ function DayParkingPlanCard(props: {
               </Link>
             </div>
           ) : buildingRecLoading ? (
-            <p className="text-sm text-slate-500">Finding a stall…</p>
+            <div
+              className="rounded-lg border border-slate-200 bg-slate-50/80 p-4 space-y-2"
+              aria-busy="true"
+            >
+              <span className="sr-only">Finding a suggested stall for this building</span>
+              <div className="skeleton h-3 w-40 max-w-full rounded" />
+              <div className="skeleton h-4 w-[min(24rem,100%)] rounded" />
+              <div className="skeleton h-3 w-full rounded" />
+              <div className="skeleton h-3 w-[min(20rem,90%)] rounded" />
+              <div className="skeleton h-3 w-full max-w-xl rounded" />
+            </div>
           ) : buildingRecError ? (
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               {buildingRecError}

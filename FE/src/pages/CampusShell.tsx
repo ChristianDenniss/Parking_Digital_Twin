@@ -8,6 +8,7 @@ import type {
   ParkingSpot,
   SimulatorState,
 } from "../api/types";
+import { HomeIndexLoadingSkeleton } from "../components/HomeIndexLoadingSkeleton";
 import { ParkingMap, type ParkingMapDataMode } from "../components/ParkingMap";
 import unbLogoAlternate from "../images/UNBlogoAlternate.png";
 import type { HomeOutletContextValue, LotSortOption } from "./Home";
@@ -482,16 +483,7 @@ export function CampusShell() {
   );
 
   if (onHomeIndex && loading) {
-    return (
-      <div className="max-w-5xl mx-auto px-6 py-10 space-y-6">
-        <div className="skeleton h-8 w-40" />
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-        </div>
-      </div>
-    );
+    return <HomeIndexLoadingSkeleton />;
   }
 
   if (onHomeIndex && error) {
