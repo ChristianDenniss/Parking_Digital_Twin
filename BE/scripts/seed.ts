@@ -60,20 +60,24 @@ function randomLotImageUrl(): string {
 
 const REPLACE = process.argv.includes("--replace");
 
-/** Same names as `buildingCode` in `data/lot-building-walking-edges.json` and GEE marker mapping in `building.service.ts`. */
-const BUILDING_SEED_CONFIGS: readonly { name: string; code: string }[] = [
-  { name: "Ganong Hall", code: "Ganong Hall" },
-  { name: "K.C. Irving Hall", code: "K.C. Irving Hall" },
-  { name: "Hans W. Klohn Commons (library)", code: "Hans W. Klohn Commons (library)" },
-  { name: "Thomas J. Condon Student Centre", code: "Thomas J. Condon Student Centre" },
-  { name: "G. Forbes Elliot Athletics Centre", code: "G. Forbes Elliot Athletics Centre" },
-  { name: "Sir Douglas Hazen Hall", code: "Sir Douglas Hazen Hall" },
-  { name: "Philip W. Oland Hall", code: "Philip W. Oland Hall" },
-  { name: "Sir James Dunn Residence", code: "Sir James Dunn Residence" },
-  { name: "Colin B. Mackay Residence", code: "Colin B. Mackay Residence" },
-  { name: "Barry & Flora Beckett Residence", code: "Barry & Flora Beckett Residence" },
-  { name: "Canada Games Stadium", code: "Canada Games Stadium" },
-  { name: "Dalhousie Medicine New Brunswick building", code: "Dalhousie Medicine New Brunswick building" },
+/**
+ * `name` = official label (GEE marker id, course text, and key into `lot-building-walking-edges.json` `buildingCode`).
+ * `code` = optional shorter or alternate id for APIs/UI; walking distances always resolve edges by `name`, not `code`.
+ * `floors` → `buildings.floors` (null if unknown).
+ */
+const BUILDING_SEED_CONFIGS: readonly { name: string; code: string; floors: number | null }[] = [
+  { name: "Ganong Hall", code: "Ganong Hall", floors: 4 },
+  { name: "K.C. Irving Hall", code: "K.C. Irving Hall", floors: 4 },
+  { name: "Hans W. Klohn Commons (library)", code: "Commons", floors: 3 },
+  { name: "Thomas J. Condon Student Centre", code: "Student Centre", floors: 2 },
+  { name: "G. Forbes Elliot Athletics Centre", code: "Athletics Centre", floors: null },
+  { name: "Sir Douglas Hazen Hall", code: "Hazen Hall", floors: 4 },
+  { name: "Philip W. Oland Hall", code: "Oland Hall", floors: null },
+  { name: "Sir James Dunn Residence", code: "Dunn Residence", floors: null },
+  { name: "Colin B. Mackay Residence", code: "Mackay Residence", floors: null },
+  { name: "Barry & Flora Beckett Residence", code: "Beckett Residence", floors: null },
+  { name: "Canada Games Stadium", code: "Stadium", floors: null },
+  { name: "Dalhousie Medicine New Brunswick building", code: "Dalhousie Medicine Building", floors: null },
 ];
 
 /** Optional: `BE/data/lot-building-walking-edges.json` from `kml-to-edges.ts` (meters along Google route polyline). */
@@ -265,7 +269,7 @@ async function seed() {
   let buildings: Building[] = [];
   if ((await buildingRepo.count()) === 0) {
     for (const cfg of BUILDING_SEED_CONFIGS) {
-      const b = buildingRepo.create({ name: cfg.name, code: cfg.code });
+      const b = buildingRepo.create({ name: cfg.name, code: cfg.code, floors: cfg.floors });
       await buildingRepo.save(b);
       buildings.push(b);
     }
@@ -280,8 +284,7 @@ async function seed() {
     }
     for (const lot of lots) {
       for (const building of buildings) {
-        const code = building.code ?? building.name;
-        const key = `${lot.name}|${code}`;
+        const key = `${lot.name}|${building.name}`;
         const fromKml = walkingEdges?.get(key);
         const distanceMeters =
           fromKml != null && Number.isFinite(fromKml)
