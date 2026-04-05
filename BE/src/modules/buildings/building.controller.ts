@@ -1,6 +1,20 @@
 import { Request, Response } from "express";
 import * as buildingService from "./building.service";
 
+export async function mapMarkersGeoJson(req: Request, res: Response) {
+  const debug = req.query.debug === "1" || req.query.debug === "true";
+  try {
+    const geojson = await buildingService.getMapMarkersGeoJSON(debug);
+    res.set("Cache-Control", "public, max-age=300");
+    res.json(geojson);
+  } catch (err) {
+    console.error("[buildings] GET /map-markers/geojson → 502", err);
+    res.status(502).json({
+      error: err instanceof Error ? err.message : "Failed to load building marker GeoJSON",
+    });
+  }
+}
+
 export async function list(req: Request, res: Response) {
   const buildings = await buildingService.findAll();
   res.json(buildings);

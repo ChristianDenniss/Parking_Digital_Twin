@@ -970,6 +970,36 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/buildings/map-markers/geojson:
+    get:
+      tags:
+        - Buildings
+      summary: Building map markers (GeoJSON)
+      description: >
+        GeoJSON FeatureCollection of Point features from Earth Engine merged with database buildings
+        (name, code, floors, coordinates). Used on the campus map like parking section polygons.
+      operationId: getBuildingMapMarkersGeoJson
+      parameters:
+        - name: debug
+          in: query
+          description: When `1` or `true`, include raw GEE properties per feature (`geeProperties`).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: GeoJSON FeatureCollection of Points
+          content:
+            application/json:
+              schema:
+                type: object
+                description: GeoJSON FeatureCollection (Point features)
+        "502":
+          description: Earth Engine or merge error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/buildings/{id}:
     get:
       tags:

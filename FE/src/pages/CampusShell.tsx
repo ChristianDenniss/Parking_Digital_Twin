@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } fr
 import { matchPath, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getApiBase } from "../config/apiBase";
 import { api } from "../api/client";
-import type { ParkingLot, ParkingSpot, SimulatorState } from "../api/types";
+import type {
+  BuildingMapMarkersGeoJSON,
+  ParkingLot,
+  ParkingSpot,
+  SimulatorState,
+} from "../api/types";
+import { HomeIndexLoadingSkeleton } from "../components/HomeIndexLoadingSkeleton";
 import { ParkingMap, type ParkingMapDataMode } from "../components/ParkingMap";
 import unbLogoAlternate from "../images/UNBlogoAlternate.png";
 import type { HomeOutletContextValue, LotSortOption } from "./Home";
@@ -101,6 +107,9 @@ export function CampusShell() {
   const [tileUrl, setTileUrl] = useState<string | null>(null);
   const [tileUrlError, setTileUrlError] = useState<string | null>(null);
   const [sectionsGeoJSON, setSectionsGeoJSON] = useState<SectionsGeoJSON | null>(null);
+  const [buildingMarkersGeoJSON, setBuildingMarkersGeoJSON] = useState<BuildingMapMarkersGeoJSON | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lotSort, setLotSort] = useState<LotSortOption>("biggest");
@@ -350,6 +359,13 @@ export function CampusShell() {
       .catch(() => setSectionsGeoJSON(null));
   }, []);
 
+  useEffect(() => {
+    api
+      .get<BuildingMapMarkersGeoJSON>("/api/buildings/map-markers/geojson")
+      .then(setBuildingMarkersGeoJSON)
+      .catch(() => setBuildingMarkersGeoJSON(null));
+  }, []);
+
   const sectionsWithLotNames = useMemo(() => {
     if (!sectionsGeoJSON || !Array.isArray(sectionsGeoJSON.features) || sectionsGeoJSON.features.length === 0) {
       return sectionsGeoJSON;
@@ -441,6 +457,8 @@ export function CampusShell() {
       setLotSort,
       navigate,
       mapDataMode,
+      mapScenarioDate,
+      mapScenarioTimeHHmm,
       parkingOccupancySignature,
       applyPlanPausedScenario,
       applyPlanScenarioIfChanged,
@@ -454,6 +472,8 @@ export function CampusShell() {
       lotSort,
       navigate,
       mapDataMode,
+      mapScenarioDate,
+      mapScenarioTimeHHmm,
       parkingOccupancySignature,
       applyPlanPausedScenario,
       applyPlanScenarioIfChanged,
@@ -463,16 +483,7 @@ export function CampusShell() {
   );
 
   if (onHomeIndex && loading) {
-    return (
-      <div className="max-w-5xl mx-auto px-6 py-10 space-y-6">
-        <div className="skeleton h-8 w-40" />
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-        </div>
-      </div>
-    );
+    return <HomeIndexLoadingSkeleton />;
   }
 
   if (onHomeIndex && error) {
@@ -631,6 +642,7 @@ export function CampusShell() {
           <ParkingMap
             earthEngineTileUrl={tileUrl}
             sectionsGeoJSON={sectionsWithLotNames}
+            buildingMarkersGeoJSON={buildingMarkersGeoJSON}
             lots={lots}
             onSectionClick={(lotId) => navigate(`/lot/${lotId}`)}
             mapDataMode={mapDataMode}

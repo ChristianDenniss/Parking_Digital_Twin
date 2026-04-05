@@ -10,14 +10,24 @@ import { DateTime } from "luxon";
 /** UNBSJ civil time (Atlantic, DST-aware). */
 export const UNBSJ_TIMEZONE = "America/Moncton";
 
+/** One 15-minute bucket from `pplOnCampusByTime.json` (extra fields optional for older files). */
 export type WinterSlot = {
   slotStart: string;
   slotEnd: string;
   carsOnCampusMidpoint: number;
+  totalEnrolledInClass?: number;
+  sectionsMeeting?: number;
+  assumedInstructors?: number;
+  carsOnCampusMin?: number;
+  carsOnCampusMax?: number;
 };
 
 type PplFile = {
-  winter2026: { slots: WinterSlot[] };
+  winter2026: {
+    term?: string;
+    coursesIncluded?: number;
+    slots: WinterSlot[];
+  };
 };
 
 let cachedProfile: PplFile | null = null;
