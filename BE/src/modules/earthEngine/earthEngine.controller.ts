@@ -1,6 +1,18 @@
 import { Request, Response } from "express";
 import * as earthEngineService from "./earthEngine.service";
 
+function earthEngineHttpCacheControl(): string {
+  return earthEngineService.isEarthEngineInProcessCacheDisabled()
+    ? "no-store"
+    : "public, max-age=3600";
+}
+
+function earthEngineSectionsHttpCacheControl(): string {
+  return earthEngineService.isEarthEngineInProcessCacheDisabled()
+    ? "no-store"
+    : "public, max-age=300";
+}
+
 /**
  * GET /api/earth-engine/tiles
  * Returns the tile URL template for use in a map TileLayer.
@@ -89,7 +101,7 @@ export async function getTile(req: Request, res: Response) {
       { min, max }
     );
     res.set("Content-Type", contentType);
-    res.set("Cache-Control", "public, max-age=3600"); // tiles can be cached by client
+    res.set("Cache-Control", earthEngineHttpCacheControl());
     return res.send(Buffer.from(buffer));
   } catch (err) {
     console.error("Earth Engine tile error:", err);
@@ -108,7 +120,7 @@ export async function getSections(req: Request, res: Response) {
     const geojson = await earthEngineService.getSectionsGeoJSON();
     const featureCount = geojson.features?.length ?? 0;
     console.log("[earth-engine] GET /sections → 200", { featureCount });
-    res.set("Cache-Control", "public, max-age=300"); // 5 min
+    res.set("Cache-Control", earthEngineSectionsHttpCacheControl());
     return res.json(geojson);
   } catch (err) {
     console.error("[earth-engine] GET /sections → 502", err);

@@ -11,6 +11,7 @@ import type {
   ParkingSpot,
 } from "../api/types";
 import type { ParkingMapDataMode } from "../components/ParkingMap";
+import { ParkingForecastSection } from "../components/ParkingForecastSection";
 
 function formatLocalTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, {
@@ -48,6 +49,8 @@ export type HomeOutletContextValue = {
   navigate: NavigateFunction;
   /** Matches campus map: live occupancy vs scenario snapshot already applied to spots. */
   mapDataMode: ParkingMapDataMode;
+  mapScenarioDate: string;
+  mapScenarioTimeHHmm: string;
   /**
    * Fingerprint of all spot statuses. When this changes (e.g. map poll / simulator tick), building recommendations should refresh.
    */
@@ -653,6 +656,8 @@ export function HomeIndexContent() {
     setLotSort,
     navigate,
     mapDataMode,
+    mapScenarioDate,
+    mapScenarioTimeHHmm,
     parkingOccupancySignature,
     applyPlanScenarioIfChanged,
     setDayPlanMapLoading,
@@ -675,6 +680,12 @@ export function HomeIndexContent() {
         navigate={navigate}
         mapDataMode={mapDataMode}
         parkingOccupancySignature={parkingOccupancySignature}
+      />
+
+      <ParkingForecastSection
+        mapDataMode={mapDataMode}
+        mapScenarioDate={mapScenarioDate}
+        mapScenarioTimeHHmm={mapScenarioTimeHHmm}
       />
 
       <section>

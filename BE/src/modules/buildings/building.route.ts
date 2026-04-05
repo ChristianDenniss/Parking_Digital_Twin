@@ -12,6 +12,16 @@ router.get(
   cacheMiddleware({ prefix: "buildings", ttlSeconds: CACHE_TTL }),
   buildingController.list
 );
+router.get(
+  "/map-markers/geojson",
+  cacheMiddleware({
+    prefix: "buildings",
+    ttlSeconds: 300,
+    key: (req) =>
+      `GET:/api/buildings/map-markers/geojson${req.query.debug === "1" || req.query.debug === "true" ? "?debug=1" : ""}`,
+  }),
+  buildingController.mapMarkersGeoJson
+);
 router.get("/distances/lot-building",
   cacheMiddleware({ prefix: "lot-building-distances", ttlSeconds: CACHE_TTL }),
   lotBuildingDistanceController.list

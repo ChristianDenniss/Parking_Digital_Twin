@@ -1,9 +1,22 @@
 import { Request, Response } from "express";
 import * as parkingLotService from "./parkingLot.service";
+import * as parkingOccupancyAssign from "../parkingSpots/parkingOccupancyAssign.service";
 import { createParkingLotSchema, recommendParkingSchema } from "./parkingLot.schema";
 import { validate } from "../../utils/validate";
 import type { AuthUser } from "../../middleware/auth";
 import { DEFAULT_ANONYMOUS_PARKING_ELIGIBILITY } from "./parkingLotEligibility";
+
+export async function forecast(req: Request, res: Response) {
+  const date = typeof req.query.date === "string" ? req.query.date : "";
+  const time = typeof req.query.time === "string" ? req.query.time : "";
+  try {
+    const summary = await parkingOccupancyAssign.getParkingForecastForRequest(date, time);
+    res.json(summary);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "forecast failed";
+    res.status(400).json({ error: msg });
+  }
+}
 
 export async function list(req: Request, res: Response) {
   const buildingId = req.query.buildingId as string | undefined;

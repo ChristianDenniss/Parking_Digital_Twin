@@ -60,6 +60,22 @@ function randomLotImageUrl(): string {
 
 const REPLACE = process.argv.includes("--replace");
 
+/** Same names as `buildingCode` in `data/lot-building-walking-edges.json` and GEE marker mapping in `building.service.ts`. */
+const BUILDING_SEED_CONFIGS: readonly { name: string; code: string }[] = [
+  { name: "Ganong Hall", code: "Ganong Hall" },
+  { name: "K.C. Irving Hall", code: "K.C. Irving Hall" },
+  { name: "Hans W. Klohn Commons (library)", code: "Hans W. Klohn Commons (library)" },
+  { name: "Thomas J. Condon Student Centre", code: "Thomas J. Condon Student Centre" },
+  { name: "G. Forbes Elliot Athletics Centre", code: "G. Forbes Elliot Athletics Centre" },
+  { name: "Sir Douglas Hazen Hall", code: "Sir Douglas Hazen Hall" },
+  { name: "Philip W. Oland Hall", code: "Philip W. Oland Hall" },
+  { name: "Sir James Dunn Residence", code: "Sir James Dunn Residence" },
+  { name: "Colin B. Mackay Residence", code: "Colin B. Mackay Residence" },
+  { name: "Barry & Flora Beckett Residence", code: "Barry & Flora Beckett Residence" },
+  { name: "Canada Games Stadium", code: "Canada Games Stadium" },
+  { name: "Dalhousie Medicine New Brunswick building", code: "Dalhousie Medicine New Brunswick building" },
+];
+
 /** Optional: `BE/data/lot-building-walking-edges.json` from `kml-to-edges.ts` (meters along Google route polyline). */
 const WALKING_EDGES_PATH = path.join(__dirname, "../data/lot-building-walking-edges.json");
 
@@ -86,13 +102,21 @@ async function seed() {
   const lotCount = await lotRepo.count();
   if (REPLACE || spotCount > 0 || lotCount > 0) {
     if (REPLACE) {
-      console.log("Replace mode: clearing parking lots and spots only (courses, students, users, buildings are left intact).");
+      console.log(
+        "Replace mode: clearing parking lots, spots, lot–building distances, and buildings; courses/students/users stay."
+      );
     } else {
       console.log(`Clearing existing data (${spotCount} spots) to re-seed to match current lotsConfig capacities...`);
     }
-    // Only parking data; do not delete courses, class_schedule, students, users, or buildings.
     await spotRepo.createQueryBuilder().delete().execute();
     await lotRepo.createQueryBuilder().delete().execute();
+    if (REPLACE) {
+      const distanceRepo = AppDataSource.getRepository(LotBuildingDistance);
+      const buildingRepo = AppDataSource.getRepository(Building);
+      await distanceRepo.createQueryBuilder().delete().execute();
+      await buildingRepo.createQueryBuilder().delete().execute();
+      console.log("Cleared buildings and lot–building distances; will re-seed from BUILDING_SEED_CONFIGS.");
+    }
   }
 
   // 16 lots (names match GEE features).
@@ -240,21 +264,7 @@ async function seed() {
   const distanceRepo = AppDataSource.getRepository(LotBuildingDistance);
   let buildings: Building[] = [];
   if ((await buildingRepo.count()) === 0) {
-    const buildingConfigs = [
-      { name: "Ganong Hall", code: "Ganong Hall" },
-      { name: "K.C. Irving Hall", code: "K.C. Irving Hall" },
-      { name: "Hans W. Klohn Commons (library)", code: "Hans W. Klohn Commons (library)" },
-      { name: "Thomas J. Condon Student Centre", code: "Thomas J. Condon Student Centre" },
-      { name: "G. Forbes Elliot Athletics Centre", code: "G. Forbes Elliot Athletics Centre" },
-      { name: "Sir Douglas Hazen Hall", code: "Sir Douglas Hazen Hall" },
-      { name: "Philip W. Oland Hall", code: "Philip W. Oland Hall" },
-      { name: "Sir James Dunn Residence", code: "Sir James Dunn Residence" },
-      { name: "Colin B. Mackay Residence", code: "Colin B. Mackay Residence" },
-      { name: "Barry & Flora Beckett Residence", code: "Barry & Flora Beckett Residence" },
-      { name: "Canada Games Stadium", code: "Canada Games Stadium" },
-      { name: "Dalhousie Medicine New Brunswick building", code: "Dalhousie Medicine New Brunswick building" },
-    ];
-    for (const cfg of buildingConfigs) {
+    for (const cfg of BUILDING_SEED_CONFIGS) {
       const b = buildingRepo.create({ name: cfg.name, code: cfg.code });
       await buildingRepo.save(b);
       buildings.push(b);
