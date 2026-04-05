@@ -60,25 +60,37 @@ function randomLotImageUrl(): string {
 
 const REPLACE = process.argv.includes("--replace");
 
-/**
- * `name` = official label (GEE marker id, course text, and key into `lot-building-walking-edges.json` `buildingCode`).
- * `code` = optional shorter or alternate id for APIs/UI; walking distances always resolve edges by `name`, not `code`.
- * `floors` → `buildings.floors` (null if unknown).
- */
-const BUILDING_SEED_CONFIGS: readonly { name: string; code: string; floors: number | null }[] = [
-  { name: "Ganong Hall", code: "Ganong Hall", floors: 4 },
-  { name: "K.C. Irving Hall", code: "K.C. Irving Hall", floors: 4 },
-  { name: "Hans W. Klohn Commons (library)", code: "Commons", floors: 3 },
-  { name: "Thomas J. Condon Student Centre", code: "Student Centre", floors: 2 },
-  { name: "G. Forbes Elliot Athletics Centre", code: "Athletics Centre", floors: null },
-  { name: "Sir Douglas Hazen Hall", code: "Hazen Hall", floors: 4 },
-  { name: "Philip W. Oland Hall", code: "Oland Hall", floors: null },
-  { name: "Sir James Dunn Residence", code: "Dunn Residence", floors: null },
-  { name: "Colin B. Mackay Residence", code: "Mackay Residence", floors: null },
-  { name: "Barry & Flora Beckett Residence", code: "Beckett Residence", floors: null },
-  { name: "Canada Games Stadium", code: "Stadium", floors: null },
-  { name: "Dalhousie Medicine New Brunswick building", code: "Dalhousie Medicine Building", floors: null },
-];
+/** `name` = GEE / walking-edges key; `code` = short API label; `floors` = number or null. */
+interface BuildingSeedConfigRow {
+  name: string;
+  code: string;
+  floors: number | null;
+}
+
+const BUILDING_SEED_CONFIG_PATH = path.join(__dirname, "../data/building-seed-config.json");
+
+function loadBuildingSeedConfigs(): BuildingSeedConfigRow[] {
+  if (!fs.existsSync(BUILDING_SEED_CONFIG_PATH)) {
+    throw new Error(`Missing building seed data: ${BUILDING_SEED_CONFIG_PATH}`);
+  }
+  const raw: unknown = JSON.parse(fs.readFileSync(BUILDING_SEED_CONFIG_PATH, "utf-8"));
+  if (!Array.isArray(raw)) {
+    throw new Error(`${BUILDING_SEED_CONFIG_PATH} must be a JSON array`);
+  }
+  const out: BuildingSeedConfigRow[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const row = raw[i] as Record<string, unknown>;
+    if (typeof row?.name !== "string" || typeof row?.code !== "string") {
+      throw new Error(`${BUILDING_SEED_CONFIG_PATH}: row ${i} needs string "name" and "code"`);
+    }
+    const floors = row.floors;
+    if (floors != null && typeof floors !== "number") {
+      throw new Error(`${BUILDING_SEED_CONFIG_PATH}: row ${i} ("${row.name}") "floors" must be a number or null`);
+    }
+    out.push({ name: row.name, code: row.code, floors: floors === undefined ? null : (floors as number | null) });
+  }
+  return out;
+}
 
 /** Optional: `BE/data/lot-building-walking-edges.json` from `kml-to-edges.ts` (meters along Google route polyline). */
 const WALKING_EDGES_PATH = path.join(__dirname, "../data/lot-building-walking-edges.json");
@@ -99,6 +111,7 @@ const SEED_SCENARIO_TIME = process.env.SEED_SCENARIO_TIME ?? "11:00";
 
 async function seed() {
   await AppDataSource.initialize();
+  const buildingSeedConfigs = loadBuildingSeedConfigs();
   const lotRepo = AppDataSource.getRepository(ParkingLot);
   const spotRepo = AppDataSource.getRepository(ParkingSpot);
 
@@ -119,7 +132,7 @@ async function seed() {
       const buildingRepo = AppDataSource.getRepository(Building);
       await distanceRepo.createQueryBuilder().delete().execute();
       await buildingRepo.createQueryBuilder().delete().execute();
-      console.log("Cleared buildings and lot–building distances; will re-seed from BUILDING_SEED_CONFIGS.");
+      console.log("Cleared buildings and lot–building distances; will re-seed from building-seed-config.json.");
     }
   }
 
@@ -268,7 +281,7 @@ async function seed() {
   const distanceRepo = AppDataSource.getRepository(LotBuildingDistance);
   let buildings: Building[] = [];
   if ((await buildingRepo.count()) === 0) {
-    for (const cfg of BUILDING_SEED_CONFIGS) {
+    for (const cfg of buildingSeedConfigs) {
       const b = buildingRepo.create({ name: cfg.name, code: cfg.code, floors: cfg.floors });
       await buildingRepo.save(b);
       buildings.push(b);

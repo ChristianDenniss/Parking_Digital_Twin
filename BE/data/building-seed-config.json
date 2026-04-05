@@ -1,0 +1,14 @@
+[
+  { "name": "Ganong Hall", "code": "Ganong Hall", "floors": 4 },
+  { "name": "K.C. Irving Hall", "code": "K.C. Irving Hall", "floors": 4 },
+  { "name": "Hans W. Klohn Commons (library)", "code": "Commons", "floors": 3 },
+  { "name": "Thomas J. Condon Student Centre", "code": "Student Centre", "floors": 2 },
+  { "name": "G. Forbes Elliot Athletics Centre", "code": "Athletics Centre", "floors": null },
+  { "name": "Sir Douglas Hazen Hall", "code": "Hazen Hall", "floors": 4 },
+  { "name": "Philip W. Oland Hall", "code": "Oland Hall", "floors": null },
+  { "name": "Sir James Dunn Residence", "code": "Dunn Residence", "floors": null },
+  { "name": "Colin B. Mackay Residence", "code": "Mackay Residence", "floors": null },
+  { "name": "Barry & Flora Beckett Residence", "code": "Beckett Residence", "floors": null },
+  { "name": "Canada Games Stadium", "code": "Stadium", "floors": null },
+  { "name": "Dalhousie Medicine New Brunswick building", "code": "Dalhousie Medicine Building", "floors": null }
+]
