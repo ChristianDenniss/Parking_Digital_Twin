@@ -116,19 +116,21 @@ export default function App() {
   return (
     <div className="bg-slate-50 text-slate-900 min-h-screen font-sans">
       <Nav />
-      <Routes>
-        <Route element={<CampusShell />}>
-          <Route path="/" element={<Home />}>
-            <Route index element={<HomeIndexContent />} />
-            <Route path="lot/:id" element={<LotDetail />} />
+      <main id="main-content">
+        <Routes>
+          <Route element={<CampusShell />}>
+            <Route path="/" element={<Home />}>
+              <Route index element={<HomeIndexContent />} />
+              <Route path="lot/:id" element={<LotDetail />} />
+            </Route>
+            <Route path="lots" element={<Lots />} />
+            <Route path="auth" element={<Auth />} />
+            <Route path="logs" element={<Logs />} />
+            <Route path="apispec" element={<Api />} />
+            <Route path="schedule" element={<Schedule />} />
           </Route>
-          <Route path="lots" element={<Lots />} />
-          <Route path="auth" element={<Auth />} />
-          <Route path="logs" element={<Logs />} />
-          <Route path="apispec" element={<Api />} />
-          <Route path="schedule" element={<Schedule />} />
-        </Route>
-      </Routes>
+        </Routes>
+      </main>
     </div>
   );
 }
