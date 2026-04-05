@@ -80,7 +80,7 @@ Runs on port **3000** by default (`PORT` env overrides). With default **local** 
 
 A simulator updates ~5% of parking spot statuses every 5 seconds so the lot doesn’t sit static. Override with `SIM_OCCUPANCY` (0–1) if you want a different average occupancy.
 
-### Google Earth Engine (thumbnails / map tiles)
+### Google Earth Engine (map tiles)
 
 We used to keep a **`BE/serviceAccount.json`** file (gitignored) for local Earth Engine auth. That worked, but credentials on disk are easy to mishandle and don’t match how **Fly** and other hosts expect secrets. The supported approach now is **environment variables** (12-factor style): same code locally and in production, no key file in the repo, secrets only in **`.env`** (local, gitignored) or the platform’s secret store.
 
@@ -93,11 +93,8 @@ Credentials are resolved in this order (see `BE/src/modules/earthEngine/earthEng
 
 The service account **must be registered as a user** in your Google Earth Engine project.
 
-- **Thumbnail:** `GET /api/earth-engine/thumbnail?asset=...` — redirects to a static PNG/JPG.
-- **Tiles (proxied):** `GET /api/earth-engine/tiles/{z}/{x}/{y}?asset=...` — serves map tiles through the backend so the client never sees mapid/token. Use this as the tile URL in your map library, e.g.  
-  `https://your-api/api/earth-engine/tiles/{z}/{x}/{y}?asset=USGS/SRTMGL1_003`  
-  You can protect this route with your auth middleware so only logged-in users get tiles.
-- **Map ID (optional):** `GET /api/earth-engine/mapid?asset=...` — returns mapid/token for client-side tile usage; prefer the tile proxy above to keep credentials server-side.
+- **Tiles (proxied):** `GET /api/earth-engine/tiles/{z}/{x}/{y}?asset=...` — serves map tiles through the backend so the client never sees mapid/token. Default `asset` is `unbsj` (UNBSJ image + section outlines). You can protect this route with auth middleware so only logged-in users get tiles.
+- **Sections:** `GET /api/earth-engine/sections` — parking section polygons as GeoJSON for the map.
 
 ---
 
