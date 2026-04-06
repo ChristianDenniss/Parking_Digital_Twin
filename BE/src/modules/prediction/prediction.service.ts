@@ -136,11 +136,24 @@ function isWeekend(dateYmd: string): boolean {
   return d.getDay() === 0 || d.getDay() === 6;
 }
 
-function gaussianNoise(sigma: number): number {
-  // Box-Muller transform
-  const u1 = Math.random();
-  const u2 = Math.random();
-  return sigma * Math.sqrt(-2 * Math.log(u1 + 1e-10)) * Math.cos(2 * Math.PI * u2);
+/** Deterministic pseudo-random float in (0,1] seeded by a 32-bit integer. */
+function seededRand(seed: number): number {
+  // xorshift32
+  let s = seed >>> 0;
+  s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+  return ((s >>> 0) + 1) / 0x100000001;
+}
+
+/**
+ * Seeded Gaussian noise — Box-Muller transform.
+ * Using the lot ID and target timestamp as the seed means the same lot at the
+ * same time always produces the same noise offset, so baseline numbers don't
+ * change just because a different eventSize is selected.
+ */
+function gaussianNoise(sigma: number, seed: number): number {
+  const u1 = seededRand(seed);
+  const u2 = seededRand(seed ^ 0xdeadbeef);
+  return sigma * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
 
 // ─── Historical DB query ──────────────────────────────────────────────────────
@@ -267,7 +280,11 @@ function buildPrediction(
   const afterEnroll = Math.min(1, afterEvent * enrollMultiplier);
 
   // ── Step 4: Gaussian noise (only for curve; DB avg already has variance) ──
-  const noise = confidence === "curve" ? gaussianNoise(0.04) : gaussianNoise(0.015);
+  // Seed from lot ID + date + hour so the same inputs always produce the same
+  // noise offset — prevents baseline numbers from changing between requests.
+  const noiseSeed = lot.id.split("").reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0) ^
+    parseInt(targetDate.replace(/-/g, ""), 10) ^ (hour * 0x9e3779b9);
+  const noise = confidence === "curve" ? gaussianNoise(0.04, noiseSeed) : gaussianNoise(0.015, noiseSeed);
   const final = Math.min(1, Math.max(0, afterEnroll + noise));
 
   return {
