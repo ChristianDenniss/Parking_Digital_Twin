@@ -62,11 +62,14 @@ router.get("/", cacheMiddleware({ ttlSeconds: 120 }), async (req: Request, res: 
     const useEnrollment = req.query.useEnrollment !== "false";
     const dayOfWeek = dt.toFormat("cccc"); // e.g. "Tuesday"
 
-    // Run baseline (no event, no enrollment) and scenario in parallel
-    const [baseline, scenario] = await Promise.all([
-      predictSnapshot(targetAt, { eventSize: "none", useEnrollment: false }),
-      predictSnapshot(targetAt, { eventSize, useEnrollment }),
-    ]);
+    // Baseline: same useEnrollment as scenario but no event — the only variable is eventSize.
+    // When eventSize is "none" the scenario is identical to the baseline, so reuse the
+    // baseline result directly instead of running a second prediction (which would produce
+    // slightly different numbers due to independent Gaussian noise).
+    const baseline = await predictSnapshot(targetAt, { eventSize: "none", useEnrollment });
+    const scenario = eventSize === "none"
+      ? baseline
+      : await predictSnapshot(targetAt, { eventSize, useEnrollment });
 
     const baselineMap = new Map<string, PredictionResult>(baseline.map((r) => [r.lotId, r]));
 
