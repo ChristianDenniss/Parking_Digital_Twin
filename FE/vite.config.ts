@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import type { ServerResponse } from "http";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
@@ -6,6 +7,11 @@ const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? "http://localhost:30
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/__tests__/setup.ts"],
+  },
   server: {
     port: 5173,
     proxy: {

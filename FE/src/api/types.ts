@@ -49,6 +49,10 @@ export interface ParkingSpot {
   index: number;
   /** 1-based order in lot SVG (spot layers). Enables 1:1 match by position. */
   slotIndex?: number | null;
+  /** Estimated meters from spot to nearest lot exit. */
+  distanceFromExit?: number | null;
+  /** Designated accessible (disability) stall. */
+  isAccessible?: boolean;
   currentStatus: "occupied" | "empty";
   updatedAt: string;
 }
@@ -203,9 +207,66 @@ export interface DayArrivalPlanResponse {
   scheduleNote: string;
   gapMinutesAssumeLeftCampus: number;
   segments: DayArrivalSegment[];
+  /** True when the student has no courses scheduled on this specific day of the week. */
+  noClassesOnDay?: boolean;
   assumptions: {
     walkMetersPerMinute: number;
     minutesPerFloor: number;
     congestionModel: string;
   };
+  predictionMode: "current" | "predicted";
+  eventSize: EventSize;
+  /** ISO timestamp when predictions were computed; null in current mode. */
+  forecastedAt: string | null;
+  /** Minutes from now to the earliest recommended arrival; null in current mode. */
+  forecastHorizonMinutes: number | null;
+}
+
+// ─── Quick Recommend ─────────────────────────────────────────────────────────
+
+export interface QuickRecommendResponse {
+  mode: "current" | "predicted";
+  eventSize: EventSize;
+  authenticated: boolean;
+  lot: { id: string; name: string; campus: string; capacity: number };
+  spot: { id: string; label: string; section: string; row: string; index: number; isAccessible: boolean };
+  distanceMeters: number;
+  freeSpotsInLot: number;
+  occupancyPct: number;
+  walkMinutes: number;
+  confidence: "live" | "data-backed" | "curve-estimate";
+}
+
+// ─── Prediction API types ─────────────────────────────────────────────────────
+
+export type PredictionConfidence = "data" | "curve";
+export type EventSize = "none" | "small" | "medium" | "large";
+
+/** Single-point prediction for one lot — GET /api/prediction/lots/:id */
+export interface PredictionPoint {
+  lotId: string;
+  lotName: string;
+  lotType: string;
+  /** 0–100 */
+  predictedOccupancyPct: number;
+  predictedFreeSpots: number;
+  confidence: PredictionConfidence;
+  /** ISO — the moment being predicted */
+  targetAt: string;
+  /** ISO — when this prediction was computed */
+  forecastedAt: string;
+  event: { size: EventSize; appliedBoost: number };
+  enrollment: { applied: boolean; activityIndex: number; multiplier: number };
+}
+
+/** 24-hour occupancy profile — GET /api/prediction/lots/:id/day-profile */
+export interface DayProfile {
+  lotId: string;
+  lotName: string;
+  date: string;
+  hours: Array<{
+    hour: number;
+    predictedOccupancyPct: number;
+    confidence: PredictionConfidence;
+  }>;
 }

@@ -11,18 +11,39 @@ export function Logs() {
   const [timeFrom, setTimeFrom] = useState("");
   const [timeTo, setTimeTo] = useState("");
 
+  const POLL_INTERVAL_MS = 30_000;
+
   useEffect(() => {
+    let cancelled = false;
+
     const fetchLogs = () => {
+      if (cancelled) return;
+      if (document.hidden || !navigator.onLine) return;
       api
         .get<ParkingSpotLog[]>("/api/parking-spot-logs")
-        .then(setLogs)
-        .catch((e) => setError(e.message))
-        .finally(() => setLoading(false));
+        .then((data) => { if (!cancelled) { setLogs(data); setLoading(false); } })
+        .catch((e) => { if (!cancelled) { setError(e.message); setLoading(false); } });
     };
+
     setLoading(true);
     fetchLogs();
-    const interval = setInterval(fetchLogs, 5000);
-    return () => clearInterval(interval);
+
+    const interval = setInterval(fetchLogs, POLL_INTERVAL_MS);
+
+    const onVisible = () => { if (!document.hidden && navigator.onLine) fetchLogs(); };
+    const onOnline = () => fetchLogs();
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    window.addEventListener("online", onOnline);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      window.removeEventListener("online", onOnline);
+    };
   }, []);
 
   const statusOptions = useMemo(() => {

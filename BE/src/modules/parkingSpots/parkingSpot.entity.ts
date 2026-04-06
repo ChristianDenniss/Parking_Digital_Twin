@@ -34,6 +34,14 @@ export class ParkingSpot {
   @Column("integer", { nullable: true })
   slotIndex!: number | null;
 
+  /** Estimated walking distance (meters) from this spot to the nearest lot exit. Lower = easier egress. */
+  @Column("integer", { nullable: true })
+  distanceFromExit!: number | null;
+
+  /** True if this is a designated accessible (disability) stall. */
+  @Column({ type: "boolean", default: false })
+  isAccessible!: boolean;
+
   @Column({ type: "text", default: "empty" })
   currentStatus!: "occupied" | "empty";
 

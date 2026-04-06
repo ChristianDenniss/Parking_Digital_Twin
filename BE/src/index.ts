@@ -1,7 +1,10 @@
 import "reflect-metadata";
 import path from "path";
 import express from "express";
+import cors from "cors";
 import { AppDataSource } from "./db/data-source";
+import { DB_CONNECTION_SUMMARY } from "./db/data-source";
+import { getAppMode, isLocalAppMode } from "./config/appMode";
 import { initializeEarthEngine } from "./config/earthEngine";
 import { notFound, errorHandler, requestLogger, loggingMiddleware } from "./middleware";
 import { cacheHealthCheck } from "./middleware/cache";
@@ -18,6 +21,9 @@ import buildingRoute from "./modules/buildings/building.route";
 import authRoute from "./modules/users/auth.route";
 import userRoute from "./modules/users/user.route";
 import earthEngineRoute from "./modules/earthEngine/earthEngine.route";
+import predictionRoute from "./modules/prediction/prediction.route";
+import whatIfRoute from "./modules/whatif/whatif.route";
+import * as campusParameterService from "./modules/campusParameters/campusParameter.service";
 
 const PORT = process.env.PORT || 3000;
 
@@ -25,7 +31,27 @@ async function main() {
   await AppDataSource.initialize();
   await initializeEarthEngine();
 
+  const mode = getAppMode();
+  console.log(`[App] Mode: ${mode} | DB: ${DB_CONNECTION_SUMMARY}`);
+
+  // Seed campus behavioural parameters (carpool, absence rates) if not present
+  await campusParameterService.ensureDefaults();
+
   const app = express();
+
+  // CORS — allow same-origin in local dev; in production allow the configured frontend origin.
+  if (isLocalAppMode()) {
+    app.use(cors());
+  } else {
+    const allowedOrigin = process.env.FRONTEND_ORIGIN ?? "";
+    app.use(
+      cors({
+        origin: allowedOrigin || true,
+        credentials: true,
+      })
+    );
+  }
+
   app.use(express.json());
   app.use(requestLogger);
   app.use(loggingMiddleware);
@@ -42,6 +68,8 @@ async function main() {
   app.use("/api/auth", authRoute);
   app.use("/api/users", userRoute);
   app.use("/api/earth-engine", earthEngineRoute);
+  app.use("/api/prediction", predictionRoute);
+  app.use("/api/what-if", whatIfRoute);
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, service: "unb-parking-twin-be" });

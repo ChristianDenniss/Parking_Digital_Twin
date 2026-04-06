@@ -73,11 +73,51 @@ function getCredentialsPath(): string {
   return defaultPath;
 }
 
+/**
+ * Load credentials from a single env var containing the full JSON string.
+ * Used in production (e.g. Supabase / Railway) where a file path is unavailable.
+ */
+function loadCredentialsFromEnvJson(): object | null {
+  const raw = process.env.EARTH_ENGINE_CREDENTIALS_JSON;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as object;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load credentials from split env vars (client_email + private_key).
+ * Constructs a minimal service-account JSON understood by the EE SDK.
+ */
+function loadCredentialsFromSplitEnv(): object | null {
+  const clientEmail = process.env.EARTH_ENGINE_CLIENT_EMAIL;
+  const privateKey = process.env.EARTH_ENGINE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  if (!clientEmail || !privateKey) return null;
+  return {
+    type: "service_account",
+    client_email: clientEmail,
+    private_key: privateKey,
+  };
+}
+
 function loadCredentials(): object {
+  // 1. Full JSON blob in env
+  const fromJson = loadCredentialsFromEnvJson();
+  if (fromJson) return fromJson;
+
+  // 2. Split env vars
+  const fromSplit = loadCredentialsFromSplitEnv();
+  if (fromSplit) return fromSplit;
+
+  // 3. File path
   const credPath = getCredentialsPath();
   if (!fs.existsSync(credPath)) {
     throw new Error(
-      `Earth Engine credentials not found at ${credPath}. Set GOOGLE_APPLICATION_CREDENTIALS or EARTH_ENGINE_SERVICE_ACCOUNT_PATH, or place serviceAccount.json in BE/`
+      `Earth Engine credentials not found at ${credPath}. Set EARTH_ENGINE_CREDENTIALS_JSON, ` +
+        `EARTH_ENGINE_CLIENT_EMAIL + EARTH_ENGINE_PRIVATE_KEY, ` +
+        `GOOGLE_APPLICATION_CREDENTIALS, or place serviceAccount.json in BE/`
     );
   }
   const raw = fs.readFileSync(credPath, "utf-8");

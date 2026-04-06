@@ -3,3 +3,20 @@ BE/node_modules/
 FE/node_modules/
 BE/dist/
 BE/serviceAccount.json
+
+# Local database — never commit
+BE/data/database.sqlite
+BE/data/database.sqlite-shm
+BE/data/database.sqlite-wal
+
+# Downloaded external datasets
+BE/data/birmingham_tmp/
+
+# Claude Code memory (local only)
+memory/
+
+# Environment files
+.env
+.env.local
+BE/.env
+FE/.env

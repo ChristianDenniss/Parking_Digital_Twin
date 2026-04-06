@@ -108,13 +108,30 @@ export async function recommendBestParking(params: {
       ? rankedLots.filter((r) => isUserEligibleForLot(r.lot.name, eligibility))
       : rankedLots;
 
+  const isDisabled = params.parkingEligibility?.disabled === true;
+
   for (const ranked of eligibleRanked) {
     const lotId = ranked.lot.id;
-    const spots = await spotRepo().find({
+    const allSpots = await spotRepo().find({
       where: { parkingLotId: lotId },
       order: { slotIndex: "ASC", section: "ASC", row: "ASC", index: "ASC" },
     });
-    if (spots.length === 0) continue;
+    if (allSpots.length === 0) continue;
+
+    // Accessible spots are reserved for disabled users; non-disabled users skip them.
+    // Within eligible spots, prefer closest to exit (distanceFromExit ASC).
+    const eligible = allSpots
+      .filter((s) => (isDisabled ? s.isAccessible || !s.isAccessible : !s.isAccessible))
+      .sort((a, b) => {
+        if (isDisabled) {
+          // Accessible spots first, then by proximity to exit
+          if (a.isAccessible !== b.isAccessible) return a.isAccessible ? -1 : 1;
+        }
+        return (a.distanceFromExit ?? 999) - (b.distanceFromExit ?? 999);
+      });
+
+    // Fall back to all spots if eligibility filter left nothing (e.g. lot has no accessible spots)
+    const spots = eligible.length > 0 ? eligible : allSpots;
 
     const predictedSpotStatuses = params.predictedSpotStatusByLotId?.[lotId];
     const predictedLotFreeSpots = params.predictedFreeSpotsByLotId?.[lotId];
@@ -126,7 +143,22 @@ export async function recommendBestParking(params: {
       return spot.currentStatus === "empty";
     };
 
-    const candidateSpot = spots.find((s) => isSpotEmpty(s));
+    // Occupancy-aware spread: when the lot is sparsely used (<30%), drivers naturally
+    // don't all cluster at spot #1 — pick randomly within the nearest quartile of available
+    // spots to simulate realistic behaviour. At ≥30% occupancy use pure nearest-first.
+    const emptySpots = spots.filter((s) => isSpotEmpty(s));
+    const occupiedCount = allSpots.filter((s) => !isSpotEmpty(s)).length;
+    const occupancyRatio = allSpots.length > 0 ? occupiedCount / allSpots.length : 0;
+
+    let candidateSpot: ParkingSpot | undefined;
+    if (occupancyRatio < 0.30 && emptySpots.length > 1) {
+      // Spread mode: choose randomly from nearest 25% of available spots
+      const quartileCount = Math.max(1, Math.ceil(emptySpots.length * 0.25));
+      const pool = emptySpots.slice(0, quartileCount);
+      candidateSpot = pool[Math.floor(Math.random() * pool.length)];
+    } else {
+      candidateSpot = emptySpots[0];
+    }
     if (!candidateSpot) continue;
 
     const computedFreeSpots = spots.reduce((count, s) => count + (isSpotEmpty(s) ? 1 : 0), 0);

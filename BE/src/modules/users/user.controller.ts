@@ -5,9 +5,13 @@ import * as userService from "./user.service";
 import * as studentService from "../students/student.service";
 import * as classScheduleService from "../classSchedule/classSchedule.service";
 import * as arrivalRecommendationService from "./arrivalRecommendation.service";
+import * as parkingLotService from "../parkingLots/parkingLot.service";
+import { predictOccupancy } from "../prediction/prediction.service";
+import type { EventSize } from "../prediction/prediction.types";
 import { createUserSchema, loginSchema, patchMeSchema, updateUserSchema } from "./user.schema";
 import type { AuthUser } from "../../middleware/auth";
 import { validate } from "../../utils/validate";
+import { DEFAULT_ANONYMOUS_PARKING_ELIGIBILITY } from "../parkingLots/parkingLotEligibility";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
 
@@ -205,8 +209,20 @@ export async function myArrivalRecommendation(req: Request, res: Response) {
     return res.status(400).json({ error: "Invalid `date`. Use YYYY-MM-DD." });
   }
 
+  const stateModeRaw = req.query.stateMode;
+  const stateMode =
+    stateModeRaw === "predicted" ? "predicted" as const : "current" as const;
+
+  const eventSizeRaw = req.query.eventSize;
+  const eventSize =
+    eventSizeRaw === "small" || eventSizeRaw === "medium" || eventSizeRaw === "large"
+      ? eventSizeRaw
+      : "none" as const;
+
   const result = await arrivalRecommendationService.getArrivalRecommendationForUser(user.id, {
     selectedDate,
+    stateMode,
+    eventSize,
   });
   if (!result) {
     return res.status(404).json({
@@ -215,6 +231,251 @@ export async function myArrivalRecommendation(req: Request, res: Response) {
     });
   }
   res.json(result);
+}
+
+/**
+ * GET /api/users/me/quick-recommend?buildingId=&mode=current|predicted&eventSize=none
+ *
+ * Returns a single best parking recommendation for a given building, based on the
+ * authenticated user's eligibility (or anonymous defaults for unauthenticated requests).
+ * Supports both live ("current") and forecast ("predicted") modes.
+ */
+/**
+ * GET /api/users/me/what-if-personal?date=YYYY-MM-DD&time=HH:MM&eventSize=small
+ *
+ * Compares baseline vs. scenario parking recommendation for the authenticated user's
+ * first class on the selected date. Runs predictive mode for both sides so the
+ * comparison is fair (no live vs. forecast mismatch).
+ */
+export async function myPersonalWhatIf(req: Request, res: Response) {
+  const authUser = (req as Request & { user?: AuthUser }).user;
+  if (!authUser) return res.status(401).json({ error: "Not authenticated" });
+
+  const dateStr = typeof req.query.date === "string" ? req.query.date.trim() : "";
+  if (!dateStr) return res.status(400).json({ error: "Query parameter `date` is required (YYYY-MM-DD)." });
+  const selectedDate = arrivalRecommendationService.parseLocalDateFromYyyyMmDd(dateStr);
+  if (!selectedDate) return res.status(400).json({ error: "Invalid `date`. Use YYYY-MM-DD." });
+
+  const timeRaw = typeof req.query.time === "string" ? req.query.time.trim() : "";
+  const time = timeRaw || `${String(new Date().getHours()).padStart(2, "0")}:00`;
+
+  const eventSizeRaw = req.query.eventSize;
+  const eventSize: EventSize =
+    eventSizeRaw === "small" || eventSizeRaw === "medium" || eventSizeRaw === "large"
+      ? eventSizeRaw
+      : "none";
+
+  // Build target datetime for predictions
+  const [hourStr, minStr] = time.split(":");
+  const targetDatetime = new Date(selectedDate);
+  targetDatetime.setHours(Number(hourStr ?? 0), Number(minStr ?? 0), 0, 0);
+
+  // Resolve user eligibility
+  const user = await userService.findById(authUser.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const parkingEligibility = {
+    role: (user.role ?? "student") as "staff" | "student" | "phd_candidate",
+    resident: Boolean(user.resident),
+    disabled: Boolean(user.disabled),
+  };
+
+  // Get the user's day plan (lightweight: just need the first building + its ID)
+  const plan = await arrivalRecommendationService.getArrivalRecommendationForUser(authUser.id, {
+    selectedDate,
+    stateMode: "predicted",
+    eventSize: "none",
+  });
+
+  // Extract the first class's building for recommendation
+  const firstArrival = plan?.segments.find((s) => s.type === "initial_arrival");
+  if (!firstArrival || firstArrival.type !== "initial_arrival") {
+    return res.status(404).json({
+      error:
+        "No class with a building found on this date. Your schedule needs at least one class with a building to run a personal what-if.",
+      noClassesOnDay: plan?.noClassesOnDay ?? false,
+    });
+  }
+
+  const buildingId = firstArrival.building.id;
+
+  // Predicted free spots per lot — baseline (no event) and scenario (with event)
+  const nearbyLots = await parkingLotService.findRecommendationsByBuilding(buildingId);
+
+  const [baselinePreds, scenarioPreds] = await Promise.all([
+    Promise.allSettled(
+      nearbyLots.map(async (r) => {
+        const pred = await predictOccupancy(r.lot.id, targetDatetime, { eventSize: "none", useEnrollment: true });
+        return pred ? { lotId: r.lot.id, freeSpots: pred.predictedFreeSpots, occupancyPct: pred.predictedOccupancyPct, confidence: pred.confidence } : null;
+      })
+    ),
+    Promise.allSettled(
+      nearbyLots.map(async (r) => {
+        const pred = await predictOccupancy(r.lot.id, targetDatetime, { eventSize, useEnrollment: true });
+        return pred ? { lotId: r.lot.id, freeSpots: pred.predictedFreeSpots, occupancyPct: pred.predictedOccupancyPct, confidence: pred.confidence } : null;
+      })
+    ),
+  ]);
+
+  const baselineFreeSpots: Record<string, number> = {};
+  const scenarioFreeSpots: Record<string, number> = {};
+  for (const r of baselinePreds) {
+    if (r.status === "fulfilled" && r.value) baselineFreeSpots[r.value.lotId] = r.value.freeSpots;
+  }
+  for (const r of scenarioPreds) {
+    if (r.status === "fulfilled" && r.value) scenarioFreeSpots[r.value.lotId] = r.value.freeSpots;
+  }
+
+  const [baselineRec, scenarioRec] = await Promise.all([
+    parkingLotService.recommendBestParking({ buildingId, stateMode: "predicted", parkingEligibility, predictedFreeSpotsByLotId: baselineFreeSpots }),
+    parkingLotService.recommendBestParking({ buildingId, stateMode: "predicted", parkingEligibility, predictedFreeSpotsByLotId: scenarioFreeSpots }),
+  ]);
+
+  const lotChanged = baselineRec && scenarioRec ? baselineRec.lot.id !== scenarioRec.lot.id : false;
+  const scenarioFreeInLot = scenarioRec?.freeSpotsInSelectedLot ?? 0;
+
+  const formatRec = (rec: typeof baselineRec) => {
+    if (!rec) return null;
+    const occupancyPct = rec.lot.capacity > 0
+      ? Math.round(((rec.lot.capacity - rec.freeSpotsInSelectedLot) / rec.lot.capacity) * 100)
+      : 0;
+    return {
+      lot: { id: rec.lot.id, name: rec.lot.name, capacity: rec.lot.capacity },
+      spot: {
+        id: rec.spot.id,
+        label: rec.spot.label,
+        isAccessible: rec.spot.isAccessible ?? false,
+      },
+      distanceMeters: rec.distanceMeters,
+      freeSpotsInLot: rec.freeSpotsInSelectedLot,
+      occupancyPct,
+      walkMinutes: Math.ceil(rec.distanceMeters / 80),
+    };
+  };
+
+  res.json({
+    date: dateStr,
+    time,
+    eventSize,
+    building: { id: firstArrival.building.id, name: firstArrival.building.name },
+    baseline: formatRec(baselineRec),
+    scenario: formatRec(scenarioRec),
+    lotChanged,
+    spotsDroppedBelow10: scenarioFreeInLot < 10,
+  });
+}
+
+export async function quickRecommend(req: Request, res: Response) {
+  const authUser = (req as Request & { user?: AuthUser }).user;
+
+  const buildingId = typeof req.query.buildingId === "string" ? req.query.buildingId.trim() : "";
+  if (!buildingId) {
+    return res.status(400).json({ error: "Query parameter `buildingId` is required." });
+  }
+
+  const modeRaw = req.query.mode;
+  const stateMode: "current" | "predicted" =
+    modeRaw === "predicted" ? "predicted" : "current";
+
+  const eventSizeRaw = req.query.eventSize;
+  const eventSize: EventSize =
+    eventSizeRaw === "small" || eventSizeRaw === "medium" || eventSizeRaw === "large"
+      ? eventSizeRaw
+      : "none";
+
+  // Build parking eligibility from authenticated user or fall back to anonymous
+  let parkingEligibility = DEFAULT_ANONYMOUS_PARKING_ELIGIBILITY;
+  if (authUser) {
+    const user = await userService.findById(authUser.id);
+    if (user) {
+      parkingEligibility = {
+        role: (user.role ?? "student") as "staff" | "student" | "phd_candidate",
+        resident: Boolean(user.resident),
+        disabled: Boolean(user.disabled),
+      };
+    }
+  }
+
+  // For predicted mode: get predicted free-spot counts per lot near the building
+  let predictedFreeSpotsByLotId: Record<string, number> | undefined;
+  if (stateMode === "predicted") {
+    const now = new Date();
+    const nearbyLots = await parkingLotService.findRecommendationsByBuilding(buildingId);
+    const predictions = await Promise.allSettled(
+      nearbyLots.map(async (r) => {
+        const pred = await predictOccupancy(r.lot.id, now, { eventSize, useEnrollment: true });
+        return pred ? { lotId: r.lot.id, freeSpots: pred.predictedFreeSpots } : null;
+      })
+    );
+    predictedFreeSpotsByLotId = {};
+    for (const result of predictions) {
+      if (result.status === "fulfilled" && result.value) {
+        predictedFreeSpotsByLotId[result.value.lotId] = result.value.freeSpots;
+      }
+    }
+  }
+
+  const recommendation = await parkingLotService.recommendBestParking({
+    buildingId,
+    stateMode,
+    parkingEligibility,
+    predictedFreeSpotsByLotId,
+  });
+
+  if (!recommendation) {
+    return res.status(404).json({
+      error: "No available parking found near this building for your permit type.",
+      authenticated: Boolean(authUser),
+    });
+  }
+
+  // Estimate walk time: distance / 80 m/min (standard walking speed)
+  const walkMinutes = Math.ceil(recommendation.distanceMeters / 80);
+
+  // Occupancy percentage for the selected lot
+  const occupancyPct =
+    recommendation.lot.capacity > 0
+      ? Math.round(
+          ((recommendation.lot.capacity - recommendation.freeSpotsInSelectedLot) /
+            recommendation.lot.capacity) *
+            100
+        )
+      : 0;
+
+  // Confidence label (predicted mode: data or curve — get from prediction if available)
+  let confidence: "live" | "data-backed" | "curve-estimate" = "live";
+  if (stateMode === "predicted") {
+    const pred = await predictOccupancy(recommendation.lot.id, new Date(), {
+      eventSize,
+      useEnrollment: true,
+    });
+    confidence = pred?.confidence === "data" ? "data-backed" : "curve-estimate";
+  }
+
+  res.json({
+    mode: stateMode,
+    eventSize,
+    authenticated: Boolean(authUser),
+    lot: {
+      id: recommendation.lot.id,
+      name: recommendation.lot.name,
+      campus: recommendation.lot.campus,
+      capacity: recommendation.lot.capacity,
+    },
+    spot: {
+      id: recommendation.spot.id,
+      label: recommendation.spot.label,
+      section: recommendation.spot.section,
+      row: recommendation.spot.row,
+      index: recommendation.spot.index,
+      isAccessible: recommendation.spot.isAccessible ?? false,
+    },
+    distanceMeters: recommendation.distanceMeters,
+    freeSpotsInLot: recommendation.freeSpotsInSelectedLot,
+    occupancyPct,
+    walkMinutes,
+    confidence,
+  });
 }
 
 export async function mySchedule(req: Request, res: Response) {

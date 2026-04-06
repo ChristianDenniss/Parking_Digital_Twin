@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { matchPath, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import { getApiBase } from "../config/apiBase";
 import type { ParkingLot, ParkingSpot, SimulatorState } from "../api/types";
 import { ParkingMap, type ParkingMapDataMode } from "../components/ParkingMap";
 import unbLogoAlternate from "../images/UNBlogoAlternate.png";
 import type { HomeOutletContextValue, LotSortOption } from "./Home";
 
 const tokenKey = "parking_twin_token";
+const API_BASE = getApiBase();
+const POLL_INTERVAL_MS = 30_000;
 
 function isValidScenarioDateYmd(s: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
@@ -264,10 +267,25 @@ export function CampusShell() {
     const runLive = mapDataMode === "live" && !simPaused;
     const runScenario = mapDataMode === "pick-time" && simMapMode === "scenario" && !simPaused;
     if (!runLive && !runScenario) return;
-    const id = window.setInterval(() => {
-      api.get<ParkingSpot[]>("/api/parking-spots").then(setSpots).catch(() => {});
-    }, 5000);
-    return () => clearInterval(id);
+
+    let cancelled = false;
+    const poll = () => {
+      if (cancelled || document.hidden || !navigator.onLine) return;
+      api.get<ParkingSpot[]>("/api/parking-spots").then((s) => { if (!cancelled) setSpots(s); }).catch(() => {});
+    };
+    const id = window.setInterval(poll, POLL_INTERVAL_MS);
+    const onVisible = () => { if (!document.hidden && navigator.onLine) poll(); };
+    const onOnline = () => poll();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    window.addEventListener("online", onOnline);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      window.removeEventListener("online", onOnline);
+    };
   }, [mapDataMode, simPaused, simMapMode]);
 
   useEffect(() => {
@@ -284,28 +302,34 @@ export function CampusShell() {
   }, []);
 
   useEffect(() => {
-    Promise.all([
-      api.get<ParkingLot[]>("/api/parking-lots"),
-      api.get<ParkingSpot[]>("/api/parking-spots"),
-    ])
-      .then(([lotsData, spotsData]) => {
-        setLots(lotsData);
-        setSpots(spotsData);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    // Sync live occupancy before fetching initial data so map reflects current simulator state.
+    api
+      .post("/api/parking-spots/apply-live", {})
+      .catch(() => {})
+      .finally(() => {
+        Promise.all([
+          api.get<ParkingLot[]>("/api/parking-lots"),
+          api.get<ParkingSpot[]>("/api/parking-spots"),
+        ])
+          .then(([lotsData, spotsData]) => {
+            setLots(lotsData);
+            setSpots(spotsData);
+          })
+          .catch((e) => setError(e.message))
+          .finally(() => setLoading(false));
+      });
   }, []);
 
   useEffect(() => {
     api
-      .get<{ tileUrl: string }>("/api/earth-engine/tiles")
+      .get<{ tileUrl: string }>(`${API_BASE}/api/earth-engine/tiles`)
       .then((data) => setTileUrl(data.tileUrl))
       .catch((e) => setTileUrlError(e.message));
   }, []);
 
   useEffect(() => {
     api
-      .get<SectionsGeoJSON>("/api/earth-engine/sections")
+      .get<SectionsGeoJSON>(`${API_BASE}/api/earth-engine/sections`)
       .then(setSectionsGeoJSON)
       .catch(() => setSectionsGeoJSON(null));
   }, []);

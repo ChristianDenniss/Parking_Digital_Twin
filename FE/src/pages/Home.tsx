@@ -3,10 +3,13 @@ import { Link, Outlet, useOutletContext } from "react-router-dom";
 import type { NavigateFunction } from "react-router-dom";
 import { api } from "../api/client";
 import type {
+  Building,
   DayArrivalPlanResponse,
   DayArrivalSegment,
+  EventSize,
   ParkingLot,
   ParkingSpot,
+  QuickRecommendResponse,
 } from "../api/types";
 
 function formatLocalTime(iso: string): string {
@@ -17,8 +20,8 @@ function formatLocalTime(iso: string): string {
 }
 
 function spotLabel(spot: ParkingSpot): string {
-  if (spot.label?.trim()) return spot.label.trim();
-  return `${spot.section} ${spot.row} #${spot.index}`;
+  const label = spot.label?.trim() ? spot.label.trim() : `${spot.section} ${spot.row} #${spot.index}`;
+  return spot.isAccessible ? `${label} ♿` : label;
 }
 
 /** Open lot heat map with a specific stall outlined (see LotDetail `?spot=`). */
@@ -334,6 +337,11 @@ function DayParkingPlanCard(props: {
         <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           {planError}
         </p>
+      ) : plan && plan.noClassesOnDay ? (
+        <div className="border border-slate-200 rounded-lg px-4 py-5 bg-slate-50/80 space-y-1">
+          <p className="text-sm font-medium text-slate-700">No classes scheduled on this day</p>
+          <p className="text-xs text-slate-500">{plan.scheduleNote}</p>
+        </div>
       ) : plan && plan.segments.length > 0 ? (
         <div className="space-y-3">
           <p className="text-xs text-slate-500">{plan.scheduleNote}</p>
@@ -345,6 +353,175 @@ function DayParkingPlanCard(props: {
         </div>
       ) : (
         <p className="text-sm text-slate-500">No plan returned for this date.</p>
+      )}
+    </section>
+  );
+}
+
+function occupancyBarClass(pct: number): string {
+  if (pct >= 85) return "bg-red-500";
+  if (pct >= 75) return "bg-orange-400";
+  if (pct >= 60) return "bg-yellow-400";
+  return "bg-emerald-500";
+}
+
+function QuickRecommendCard({ token }: { token: string | null }) {
+  const [open, setOpen] = useState(false);
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [buildingId, setBuildingId] = useState("");
+  const [mode, setMode] = useState<"current" | "predicted">("current");
+  const [eventSize, setEventSize] = useState<EventSize>("none");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<QuickRecommendResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open && buildings.length === 0) {
+      api.get<Building[]>("/api/buildings").then(setBuildings).catch(() => {});
+    }
+  }, [open, buildings.length]);
+
+  const run = async () => {
+    if (!buildingId) { setError("Please select a building."); return; }
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const qs = new URLSearchParams({ buildingId, mode, eventSize }).toString();
+      const data = await api.get<QuickRecommendResponse>(`/api/users/quick-recommend?${qs}`, token ?? undefined);
+      setResult(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition-colors"
+      >
+        <div>
+          <p className="font-semibold text-slate-800">Find parking now</p>
+          <p className="text-xs text-slate-500 mt-0.5">Get a spot recommendation for any building — live or forecast</p>
+        </div>
+        <span className="text-slate-400 text-lg select-none">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-4 border-t border-slate-100">
+          {/* Building selector */}
+          <div className="pt-4 space-y-1">
+            <label className="block text-sm font-medium text-slate-700">Building</label>
+            <select
+              value={buildingId}
+              onChange={(e) => setBuildingId(e.target.value)}
+              className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+            >
+              <option value="">Select a building…</option>
+              {buildings.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Mode toggle */}
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700">Mode</label>
+            <div className="inline-flex h-8 items-stretch overflow-hidden rounded-md border-2 border-unb-red bg-white shadow-sm">
+              {(["current", "predicted"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  className={`flex items-center justify-center px-4 text-xs font-semibold transition-colors ${
+                    mode === m ? "bg-unb-red text-white" : "text-slate-900 hover:bg-unb-red/5"
+                  } ${m === "predicted" ? "border-l-2 border-unb-red" : ""}`}
+                >
+                  {m === "current" ? "Live" : "Forecast"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Event size (forecast only) */}
+          {mode === "predicted" && (
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-slate-700">Event on campus</label>
+              <select
+                value={eventSize}
+                onChange={(e) => setEventSize(e.target.value as EventSize)}
+                className="rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+              >
+                <option value="none">No event</option>
+                <option value="small">Small event</option>
+                <option value="medium">Medium event</option>
+                <option value="large">Large event</option>
+              </select>
+            </div>
+          )}
+
+          {!token && (
+            <p className="text-xs text-slate-500 bg-slate-50 rounded px-3 py-2">
+              Log in to see lots matching your permit type.{" "}
+              <Link to="/auth" className="text-unb-red underline">Sign in</Link>
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={() => void run()}
+            disabled={loading || !buildingId}
+            className="rounded-full bg-unb-red text-white text-sm px-5 py-2 font-medium hover:bg-unb-red/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? "Finding…" : "Find my spot"}
+          </button>
+
+          {error && <p className="text-sm text-red-600 mt-1">{error}</p>}
+
+          {result && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3 mt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-slate-800">{result.lot.name}</p>
+                  <p className="text-xs text-slate-500">{result.lot.campus}</p>
+                </div>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  result.confidence === "live"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : result.confidence === "data-backed"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-slate-100 text-slate-600"
+                }`}>
+                  {result.confidence === "live" ? "Live" : result.confidence === "data-backed" ? "Data-backed" : "Curve estimate"}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 text-sm">
+                <span className="font-mono font-medium text-slate-800">
+                  {result.spot.label}{result.spot.isAccessible ? " ♿" : ""}
+                </span>
+                <span className="text-slate-500">· {result.distanceMeters}m · ~{result.walkMinutes} min walk</span>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-slate-600">
+                  <span>{result.freeSpotsInLot} free of {result.lot.capacity}</span>
+                  <span className={getOccupancyColorClass(result.occupancyPct)}>{result.occupancyPct}% full</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${occupancyBarClass(result.occupancyPct)}`}
+                    style={{ width: `${result.occupancyPct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </section>
   );
@@ -386,6 +563,8 @@ export function HomeIndexContent() {
         scrollCampusMapIntoView={scrollCampusMapIntoView}
         navigate={navigate}
       />
+
+      <QuickRecommendCard token={token} />
 
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
