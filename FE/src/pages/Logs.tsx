@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import type { ParkingSpotLog } from "../api/types";
 
+const POLL_INTERVAL_MS = 30_000;
+
 export function Logs() {
   const [logs, setLogs] = useState<ParkingSpotLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -11,38 +13,28 @@ export function Logs() {
   const [timeFrom, setTimeFrom] = useState("");
   const [timeTo, setTimeTo] = useState("");
 
-  const POLL_INTERVAL_MS = 30_000;
-
   useEffect(() => {
     let cancelled = false;
-
     const fetchLogs = () => {
-      if (cancelled) return;
-      if (document.hidden || !navigator.onLine) return;
+      if (cancelled || document.hidden || !navigator.onLine) return;
       api
         .get<ParkingSpotLog[]>("/api/parking-spot-logs")
         .then((data) => { if (!cancelled) { setLogs(data); setLoading(false); } })
         .catch((e) => { if (!cancelled) { setError(e.message); setLoading(false); } });
     };
-
+    const onResume = () => fetchLogs();
     setLoading(true);
     fetchLogs();
-
     const interval = setInterval(fetchLogs, POLL_INTERVAL_MS);
-
-    const onVisible = () => { if (!document.hidden && navigator.onLine) fetchLogs(); };
-    const onOnline = () => fetchLogs();
-
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onVisible);
-    window.addEventListener("online", onOnline);
-
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", onResume);
+    window.addEventListener("online", onResume);
     return () => {
       cancelled = true;
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onVisible);
-      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onResume);
+      window.removeEventListener("online", onResume);
     };
   }, []);
 

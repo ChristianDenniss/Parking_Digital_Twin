@@ -12,7 +12,7 @@ export class HistoricalProxyData {
   @Column()
   sourceName!: string;
 
-  @Column({ type: "datetime" })
+  @Column()
   recordedAt!: Date;
 
   @Column("real")

@@ -4,6 +4,23 @@ Digital twin of all 16 UNBSJ parking lots. Models and predicts parking demand ac
 
 **BE** is in `BE/`, **FE** is in `FE/`. API spec is in `BE/openapi.yaml`. Design and SVG export notes are in `docs/figma.md`.
 
+Slides: **`docs/CS4555.pptx`** or [open in browser](https://powerpoint.cloud.microsoft/open/onedrive/?docId=3C4EFB58D9BD8FF5%21s461b1c1356bb48909f39bbbd3c85b2db&driveId=3C4EFB58D9BD8FF5).
+
+---
+
+## Deployment
+
+| Piece | Where | Notes |
+|---|---|---|
+| **Frontend** | Vercel | Set `VITE_API_URL` at build time to the Fly API base |
+| **Backend** | Fly.io | Set `APP_MODE=production`, `DATABASE_URL`/`DATABASE_CONNECTION_STRING`, `CORS_ALLOWED_ORIGINS` |
+| **Database** | Supabase (Postgres) | Used when backend is in production mode and a DB URL is set |
+| **Cache** | Redis (optional) | Set `REDIS_URL`; without it caching is disabled. Health: `GET /api/cache/health` |
+
+Local dev uses SQLite + the Vite proxy — no Supabase needed. `APP_MODE` defaults to `local` unless `NODE_ENV=production`.
+
+---
+
 ---
 
 ## Running locally
@@ -28,7 +45,7 @@ cd BE && npm run dev
 cd FE && npm run dev
 ```
 
-Runs at **http://localhost:5173**. Backend runs on port 3000.
+Runs at **http://localhost:5173**. Start the backend first so the Vite `/api` proxy can reach `http://localhost:3000` (override with `VITE_API_PROXY_TARGET`). Set `VITE_DEV_REMOTE_API=true` to point dev at a remote API instead of the local proxy.
 
 ---
 

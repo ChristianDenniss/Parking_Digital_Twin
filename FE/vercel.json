@@ -1,5 +1,11 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "framework": "vite"
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/((?!robots\\.txt$|sitemap\\.xml$|favicon\\.ico$|assets/).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

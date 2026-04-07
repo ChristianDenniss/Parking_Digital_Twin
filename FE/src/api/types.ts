@@ -1,3 +1,5 @@
+import type { FeatureCollection, Point } from "geojson";
+
 export interface ParkingLot {
   id: string;
   name: string;
@@ -14,6 +16,51 @@ export interface ParkingLotWithDistance extends ParkingLot {
   occupancyPercent?: number;
 }
 
+/** GET /api/parking-lots/forecast */
+export interface ParkingForecastLotRow {
+  parkingLotId: string;
+  name: string;
+  spotCount: number;
+  predictedOccupied: number;
+  predictedFree: number;
+  predictedOccupancyPercent: number;
+}
+
+export interface ParkingForecastInsights {
+  profileTermLabel: string;
+  coursesInProfileFile: number | null;
+  profileSlotStart: string;
+  profileSlotEnd: string;
+  weekendApplied: boolean;
+  weekendMultiplier: number;
+  modeledCarsOnCampus: number;
+  modeledCarsOnCampusMin?: number;
+  modeledCarsOnCampusMax?: number;
+  profileBusyPercentile: number;
+  profileClassEnrolledProxy: number | null;
+  profileSectionsMeeting: number | null;
+  liveDbClassOverlapEnrollmentSum: number;
+  liveDbBuildingsWithClasses: number;
+  occupancyTrendNextSlot: "up" | "down" | "steady";
+  occupancyTrendSummary: string;
+  classTransitionMultiplier: number;
+  classTransitionSummary: string | null;
+  curveEvenSpreadOccupancyPercent: number;
+}
+
+export interface ParkingForecastResponse {
+  date: string;
+  time: string;
+  timezone: string;
+  signalSource: "heuristic_profile" | "data_driven_model";
+  modelNote: string;
+  campusPredictedOccupancyPercent: number;
+  kTotal: number;
+  totalSpots: number;
+  lots: ParkingForecastLotRow[];
+  insights: ParkingForecastInsights;
+}
+
 export interface Building {
   id: string;
   name: string;
@@ -21,6 +68,22 @@ export interface Building {
   floors: number | null;
   createdAt?: string;
 }
+
+/** Properties on features from GET /api/buildings/map-markers/geojson (GEE points + DB buildings). */
+export interface BuildingMapMarkerFeatureProperties {
+  buildingId: string | null;
+  name: string;
+  code: string | null;
+  floors: number | null;
+  latitude: number;
+  longitude: number;
+  /** Meters (GeoJSON Z or GEE); omit or null when unknown. */
+  elevationMeters?: number | null;
+  matched: boolean;
+  geeProperties?: Record<string, unknown>;
+}
+
+export type BuildingMapMarkersGeoJSON = FeatureCollection<Point, BuildingMapMarkerFeatureProperties>;
 
 /** Relationship table: lot ↔ building with distance in meters. */
 export interface LotBuildingDistance {
@@ -199,6 +262,16 @@ export type DayArrivalSegment =
       timing: ArrivalTimingBreakdown;
       occupancyScenario: OccupancyScenarioClock;
     };
+
+/** POST /api/parking-lots/recommendation */
+export interface BuildingParkingRecommendationResponse {
+  lot: ParkingLot;
+  spot: ParkingSpot;
+  distanceMeters: number;
+  freeSpotsInSelectedLot: number;
+  occupancyPercent: number;
+  evaluatedMode: "current" | "predicted";
+}
 
 export interface DayArrivalPlanResponse {
   selectedDate: string;

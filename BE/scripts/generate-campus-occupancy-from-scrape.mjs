@@ -3,7 +3,7 @@
  * Writes: BE/data/pplOnCampusByTime.json
  *
  * Per slot: students in class + 1 instructor/section, non-teaching staff ranges (StaffData.md §5),
- * and estimated cars on campus (StudentData.md §2–5 + staff drive factors).
+ * and estimated cars on campus (StudentData.md §1 exact commuter share + §8 low/high for uncertain inputs).
  *
  * Run from repo root: node BE/scripts/generate-campus-occupancy-from-scrape.mjs
  */
@@ -19,21 +19,26 @@ const staffDataMdPath = join(root, "data", "StaffData.md");
 const studentDataMdPath = join(root, "data", "StudentData.md");
 const outputPath = join(root, "data", "pplOnCampusByTime.json");
 
+/** Flat baseline per slot: visitors / unscheduled activity not from scrape (applied to enroll + staff headcounts, then vehicles). */
+const BASE_CAMPUS_HEADCOUNT = 50;
+
+/** BE/data/StudentData.md §1 — 2,019 commuters / 2,319 enrolled; both scenarios use this. */
+const COMMUTER_RATE = 2019 / 2319;
+
 /**
- * Low / high vehicle scenarios from BE/data/StudentData.md §2–5 (commuter mode + carpool).
- * vehicles = commuters * (solo_rate + carpool_rate / carpool_size); commuters = enrolled * attendance * commuter_share.
+ * Low / high from StudentData.md §8. commuterShare is always COMMUTER_RATE (§1); only attendance + mode + carpool size vary.
  */
 const STUDENT_VEHICLE_SCENARIOS = {
   low: {
     attendance: 0.75,
-    commuterShare: 0.7,
+    commuterShare: COMMUTER_RATE,
     soloRate: 0.75,
     carpoolRate: 0.05,
     carpoolSize: 2.5,
   },
   high: {
     attendance: 0.85,
-    commuterShare: 0.8,
+    commuterShare: COMMUTER_RATE,
     soloRate: 0.85,
     carpoolRate: 0.15,
     carpoolSize: 2.0,
@@ -53,7 +58,6 @@ function studentVehiclesFromEnrolledInClass(enrolled) {
   };
 }
 
-/** Instructors teaching this slot: high solo-drive share (no separate doc table). */
 function instructorVehiclesLowHigh(instructorCount) {
   return {
     min: Math.round(instructorCount * 0.72),
@@ -61,7 +65,6 @@ function instructorVehiclesLowHigh(instructorCount) {
   };
 }
 
-/** Non-teaching staff on campus: not all drive; band ~58–88% bring a car. */
 function staffVehiclesLowHigh(staffMin, staffMax) {
   return {
     min: Math.round(staffMin * 0.58),
@@ -141,22 +144,6 @@ function formatClock(min) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** When times are missing or implausible, spread that section across this window (half-open). */
-const FALLBACK_CLASS_DAY_START_MIN = 6 * 60; // 06:00
-const FALLBACK_CLASS_DAY_END_MIN = 22 * 60; // 22:00 (10pm), exclusive end
-
-function resolveSectionWindow(startTime, endTime) {
-  if (hasPlausibleMeetingTimes(startTime, endTime)) {
-    const w = courseWindowMinutes(startTime, endTime);
-    if (w) return { ...w, usedFallbackWindow: false };
-  }
-  return {
-    startMin: FALLBACK_CLASS_DAY_START_MIN,
-    endMin: FALLBACK_CLASS_DAY_END_MIN,
-    usedFallbackWindow: true,
-  };
-}
-
 /** One calendar day in minutes: [0, 24*60), slots are half-open [slotStart, slotEnd). */
 function buildSeries(courses, slotMinutes) {
   const DAY_START = 0;
@@ -168,17 +155,23 @@ function buildSeries(courses, slotMinutes) {
 
   let sectionsWithFallbackWindow = 0;
   const intervals = [];
+
   for (const c of courses) {
-    const w = resolveSectionWindow(c.startTime, c.endTime);
-    if (w.usedFallbackWindow) sectionsWithFallbackWindow += 1;
     const n = Number(c.enrolled);
     const enrolled = Number.isFinite(n) && n >= 0 ? n : 0;
-    intervals.push({
-      startMin: w.startMin,
-      endMin: w.endMin,
-      enrolled,
-      classCode: c.classCode,
-    });
+    if (hasPlausibleMeetingTimes(c.startTime, c.endTime)) {
+      const w = courseWindowMinutes(c.startTime, c.endTime);
+      if (w) {
+        intervals.push({
+          startMin: w.startMin,
+          endMin: w.endMin,
+          enrolled,
+          classCode: c.classCode,
+        });
+        continue;
+      }
+    }
+    sectionsWithFallbackWindow += 1;
   }
 
   const slots = windows.map(({ slotStart, slotEnd }) => {
@@ -190,18 +183,19 @@ function buildSeries(courses, slotMinutes) {
         sectionsMeeting += 1;
       }
     }
-    const assumedInstructors = sectionsMeeting; // +1 per section taught this slot
-    const totalEnrolledPlusInstructors =
-      totalEnrolledInClass + assumedInstructors;
+
+    totalEnrolledInClass += BASE_CAMPUS_HEADCOUNT;
+    const assumedInstructors = sectionsMeeting;
+    const totalEnrolledPlusInstructors = totalEnrolledInClass + assumedInstructors;
     const staff = nonTeachingStaffRangeForSlotStartMin(slotStart);
-    const totalWithNonTeachingStaffMin =
-      totalEnrolledPlusInstructors + staff.min;
-    const totalWithNonTeachingStaffMax =
-      totalEnrolledPlusInstructors + staff.max;
+    const staffMin = staff.min + BASE_CAMPUS_HEADCOUNT;
+    const staffMax = staff.max + BASE_CAMPUS_HEADCOUNT;
+    const totalWithNonTeachingStaffMin = totalEnrolledPlusInstructors + staffMin;
+    const totalWithNonTeachingStaffMax = totalEnrolledPlusInstructors + staffMax;
 
     const carsStudents = studentVehiclesFromEnrolledInClass(totalEnrolledInClass);
     const carsInstructors = instructorVehiclesLowHigh(assumedInstructors);
-    const carsStaff = staffVehiclesLowHigh(staff.min, staff.max);
+    const carsStaff = staffVehiclesLowHigh(staffMin, staffMax);
     const carsOnCampusMin =
       carsStudents.min + carsInstructors.min + carsStaff.min;
     const carsOnCampusMax =
@@ -215,8 +209,8 @@ function buildSeries(courses, slotMinutes) {
       sectionsMeeting,
       assumedInstructors,
       totalEnrolledPlusInstructors,
-      nonTeachingStaffOnCampusMin: staff.min,
-      nonTeachingStaffOnCampusMax: staff.max,
+      nonTeachingStaffOnCampusMin: staffMin,
+      nonTeachingStaffOnCampusMax: staffMax,
       staffDataTimeBlock: staff.staffDataBlock,
       totalClassroomPlusStaffMin: totalWithNonTeachingStaffMin,
       totalClassroomPlusStaffMax: totalWithNonTeachingStaffMax,
@@ -272,7 +266,8 @@ function buildSeries(courses, slotMinutes) {
       carsOnCampusMax: peakCars.carsOnCampusMax,
       carsOnCampusMidpoint: peakCars.carsOnCampusMidpoint,
     },
-    sectionCount: intervals.length,
+    sectionCount: courses.length,
+    sectionsInOccupancyProfile: intervals.length,
     sectionsWithFallbackWindow,
   };
 }
@@ -304,6 +299,9 @@ const SLOT_MIN = 15;
 const out = {
   generatedAt: new Date().toISOString(),
   sourceFile: "scraped-courses.json",
+  campusBaselineHeadcountPerSlot: BASE_CAMPUS_HEADCOUNT,
+  campusBaselineNote:
+    "Added to totalEnrolledInClass and to nonTeachingStaff Min/Max per slot before vehicle estimates and classroom+staff totals.",
   staffPresenceModel: {
     documentationFile: "BE/data/StaffData.md",
     filePresentAtGenerate: staffDataMdPresent,
@@ -316,7 +314,7 @@ const out = {
     documentationFile: "BE/data/StudentData.md",
     filePresentAtGenerate: studentDataMdPresent,
     studentMethod:
-      "From totalEnrolledInClass: commuters = enrolled × attendance × commuter_share; vehicles = commuters × (solo_rate + carpool_rate / carpool_size). Low/high scenarios use §2–§5 range endpoints (see StudentData.md §8).",
+      "From totalEnrolledInClass: commuters = enrolled × attendance × (2019/2319) always; attendance/solo/carpool/carpool_size use §8 low/high endpoints (StudentData.md).",
     instructorMethod:
       "assumedInstructors × 0.72–0.93 vehicles (solo-heavy; approximate band).",
     nonTeachingStaffMethod:
@@ -328,23 +326,23 @@ const out = {
   dayWindowLocal: { firstSlotStart: "00:00", lastSlotEnd: "24:00" },
   fallbackClassDayWindowLocal: {
     description:
-      "Sections without plausible scrape times are treated as meeting continuously from 06:00 through 22:00 (exclusive of 22:00); no enrollment is assigned to slots before 6am or from 10pm onward for those sections.",
-    firstMinuteInclusive: "06:00",
-    lastMinuteExclusive: "22:00",
+      "Sections without plausible scrape times are omitted from schedule overlap (see sectionsWithFallbackWindow). They do not contribute to totalEnrolledInClass.",
+    firstMinuteInclusive: null,
+    lastMinuteExclusive: null,
   },
   interpretation: {
     totalEnrolledInClass:
-      "For each time slot, sum of `enrolled` for every course section whose meeting interval overlaps the slot. Same person in two simultaneous sections is counted twice; we only have per-section enrollments.",
+      "Sum of `enrolled` for overlapping plausible sections, plus `campusBaselineHeadcountPerSlot` (default 50). Implausible-time sections are excluded.",
     assumedInstructors:
       "Each section that overlaps the slot adds exactly one assumed instructor (professor/lecturer). `assumedInstructors` equals `sectionsMeeting`; `totalEnrolledPlusInstructors` is students plus those instructors only.",
     nonTeachingStaff:
-      "`nonTeachingStaffOnCampusMin`/`Max` follow BE/data/StaffData.md §5 (admin/support/etc.). `totalClassroomPlusStaffMin`/`Max` = `totalEnrolledPlusInstructors` + that range. Ranges are not additive with unique headcounts—see StaffData.md uncertainty notes.",
+      "Staff ranges from StaffData.md §5, each increased by `campusBaselineHeadcountPerSlot`. `totalClassroomPlusStaff*` uses those adjusted ranges.",
     plausibleVsFallback:
-      "Plausible sections use parsed [startTime, endTime). Implausible or missing times (placeholders, 0-length, overnight wrap in scrape, >14h, etc.) use a fixed daytime window 06:00–22:00 so their enrollments still appear during expected class hours.",
+      "Plausible sections use parsed [startTime, endTime). Implausible or missing times are omitted from the profile (not spread across the day).",
     scheduleGranularity:
       "Scrape times are weekly patterns (no separate Mon vs Tue); this series is one 24-hour profile for a typical weekday-style meeting pattern.",
     carsOnCampus:
-      "`carsOnCampusMin`/`Max` sum student-derived vehicles (StudentData.md), instructor band, and non-teaching staff vehicle band. Breakdown fields `carsFrom*` per group.",
+      "Student/instructor/staff vehicle bands computed from headcounts that already include `campusBaselineHeadcountPerSlot` on class and staff sides. `carsOnCampusMidpoint` is the average of Min/Max.",
   },
   winter2026: {
     term: "2026/WI",

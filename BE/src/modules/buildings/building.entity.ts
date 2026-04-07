@@ -23,7 +23,7 @@ export class Building {
   @Column("integer", { nullable: true })
   floors!: number | null;
 
-  @CreateDateColumn({ type: "datetime" })
+  @CreateDateColumn()
   createdAt!: Date;
 
   @OneToMany(() => LotBuildingDistance, (d) => d.building)

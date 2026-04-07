@@ -84,78 +84,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/CacheHealthErrorResponse"
 
-  /api/earth-engine/thumbnail:
-    get:
-      tags:
-        - Earth Engine
-      summary: Earth Engine image thumbnail (redirect to URL)
-      operationId: getEarthEngineThumbnail
-      parameters:
-        - name: asset
-          in: query
-          required: true
-          description: GEE asset ID (e.g. USGS/SRTMGL1_003)
-          schema:
-            type: string
-        - name: dimensions
-          in: query
-          description: Width x height (default 512x512)
-          schema:
-            type: string
-            default: "512x512"
-        - name: format
-          in: query
-          description: png or jpg
-          schema:
-            type: string
-            enum: [png, jpg]
-            default: png
-      responses:
-        "302":
-          description: Redirect to temporary thumbnail URL (PNG/JPG)
-        "400":
-          description: Missing asset
-        "502":
-          description: Earth Engine error
-
-  /api/earth-engine/mapid:
-    get:
-      tags:
-        - Earth Engine
-      summary: Earth Engine map ID for tile overlay
-      operationId: getEarthEngineMapId
-      parameters:
-        - name: asset
-          in: query
-          required: true
-          description: GEE asset ID
-          schema:
-            type: string
-        - name: min
-          in: query
-          schema:
-            type: number
-        - name: max
-          in: query
-          schema:
-            type: number
-      responses:
-        "200":
-          description: mapid and token for map tiles
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  mapid:
-                    type: string
-                  token:
-                    type: string
-        "400":
-          description: Missing asset
-        "502":
-          description: Earth Engine error
-
   /api/earth-engine/sections:
     get:
       tags:
@@ -969,6 +897,36 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /api/buildings/map-markers/geojson:
+    get:
+      tags:
+        - Buildings
+      summary: Building map markers (GeoJSON)
+      description: >
+        GeoJSON FeatureCollection of Point features from Earth Engine merged with database buildings
+        (name, code, floors, coordinates). Used on the campus map like parking section polygons.
+      operationId: getBuildingMapMarkersGeoJson
+      parameters:
+        - name: debug
+          in: query
+          description: When `1` or `true`, include raw GEE properties per feature (`geeProperties`).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: GeoJSON FeatureCollection of Points
+          content:
+            application/json:
+              schema:
+                type: object
+                description: GeoJSON FeatureCollection (Point features)
+        "502":
+          description: Earth Engine or merge error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/buildings/{id}:
     get:
@@ -1797,6 +1755,9 @@ components:
           type: number
         freeSpotsInSelectedLot:
           type: integer
+        occupancyPercent:
+          type: integer
+          description: Approximate lot fullness (0–100) from capacity and free count for the evaluated mode
         evaluatedMode:
           type: string
           enum: [current, predicted]

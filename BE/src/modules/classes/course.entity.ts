@@ -42,7 +42,7 @@ export class Course {
   @Column("integer", { nullable: true })
   capacity!: number | null;
 
-  @CreateDateColumn({ type: "datetime" })
+  @CreateDateColumn()
   createdAt!: Date;
 
   @OneToMany(() => ClassSchedule, (cs) => cs.course)

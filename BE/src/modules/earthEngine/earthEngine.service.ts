@@ -1,12 +1,14 @@
 import path from "path";
 import fs from "fs";
+import { getAppMode } from "../../config/appMode";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const ee = require("@google/earthengine") as {
   Image: (id: string) => {
     getMap: (params: object, callback: (r: MapIdResult) => void) => void;
-    getThumbURL: (params: object, callback: (url: string) => void) => void;
-    visualize: (params: object) => { blend: (other: unknown) => { getMap: (params: object, callback: (r: MapIdResult) => void) => void } };
+    visualize: (params: object) => {
+      blend: (other: unknown) => { getMap: (params: object, callback: (r: MapIdResult) => void) => void };
+    };
   };
   FeatureCollection: (id: string) => {
     style: (params: { color?: string; width?: number; fillColor?: string }) => unknown;
@@ -30,6 +32,8 @@ const ee = require("@google/earthengine") as {
 /** Asset IDs for the UNBSJ parking composite (image + section polygons). */
 const UNBSJ_IMAGE_ASSET = "projects/cs4555/assets/unbsjIMAGE";
 const UNBSJ_SECTIONS_ASSET = "projects/cs4555/assets/unbsj_parking_sectionsVersion2";
+/** Building POI points (same pattern as sections: load via getInfo, merge with DB on the server). */
+const UNBSJ_BUILDING_MARKERS_ASSET = "projects/cs4555/assets/unbsjMarkersV2";
 
 /** Lot names in same order as GEE unbsj_parking_sections features (for tooltip/click when GEE has no name prop). */
 const SECTION_LOT_NAMES = [
@@ -73,51 +77,48 @@ function getCredentialsPath(): string {
   return defaultPath;
 }
 
-/**
- * Load credentials from a single env var containing the full JSON string.
- * Used in production (e.g. Supabase / Railway) where a file path is unavailable.
- */
 function loadCredentialsFromEnvJson(): object | null {
-  const raw = process.env.EARTH_ENGINE_CREDENTIALS_JSON;
+  // Support both env var names for backward compatibility
+  const raw = (process.env.EARTH_ENGINE_SERVICE_ACCOUNT_JSON ?? process.env.EARTH_ENGINE_CREDENTIALS_JSON)?.trim();
   if (!raw) return null;
   try {
     return JSON.parse(raw) as object;
-  } catch {
-    return null;
+  } catch (err) {
+    throw new Error(
+      `EARTH_ENGINE_SERVICE_ACCOUNT_JSON is not valid JSON: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
   }
 }
 
-/**
- * Load credentials from split env vars (client_email + private_key).
- * Constructs a minimal service-account JSON understood by the EE SDK.
- */
 function loadCredentialsFromSplitEnv(): object | null {
-  const clientEmail = process.env.EARTH_ENGINE_CLIENT_EMAIL;
-  const privateKey = process.env.EARTH_ENGINE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  if (!clientEmail || !privateKey) return null;
+  const clientEmail = process.env.EARTH_ENGINE_CLIENT_EMAIL?.trim();
+  const privateKeyRaw = process.env.EARTH_ENGINE_PRIVATE_KEY;
+  if (!clientEmail || !privateKeyRaw) return null;
+  const privateKey = privateKeyRaw.replace(/\\n/g, "\n");
+  const projectId = process.env.EARTH_ENGINE_PROJECT_ID?.trim();
+  const privateKeyId = process.env.EARTH_ENGINE_PRIVATE_KEY_ID?.trim();
   return {
     type: "service_account",
     client_email: clientEmail,
     private_key: privateKey,
+    ...(projectId ? { project_id: projectId } : {}),
+    ...(privateKeyId ? { private_key_id: privateKeyId } : {}),
   };
 }
 
 function loadCredentials(): object {
-  // 1. Full JSON blob in env
-  const fromJson = loadCredentialsFromEnvJson();
-  if (fromJson) return fromJson;
+  const envJson = loadCredentialsFromEnvJson();
+  if (envJson) return envJson;
 
-  // 2. Split env vars
-  const fromSplit = loadCredentialsFromSplitEnv();
-  if (fromSplit) return fromSplit;
+  const splitEnv = loadCredentialsFromSplitEnv();
+  if (splitEnv) return splitEnv;
 
-  // 3. File path
   const credPath = getCredentialsPath();
   if (!fs.existsSync(credPath)) {
     throw new Error(
-      `Earth Engine credentials not found at ${credPath}. Set EARTH_ENGINE_CREDENTIALS_JSON, ` +
-        `EARTH_ENGINE_CLIENT_EMAIL + EARTH_ENGINE_PRIVATE_KEY, ` +
-        `GOOGLE_APPLICATION_CREDENTIALS, or place serviceAccount.json in BE/`
+      `Earth Engine credentials not found. Use EARTH_ENGINE_SERVICE_ACCOUNT_JSON, or EARTH_ENGINE_CLIENT_EMAIL + EARTH_ENGINE_PRIVATE_KEY, or set GOOGLE_APPLICATION_CREDENTIALS / EARTH_ENGINE_SERVICE_ACCOUNT_PATH to a file (tried ${credPath}).`
     );
   }
   const raw = fs.readFileSync(credPath, "utf-8");
@@ -171,6 +172,21 @@ function normalizeMapIdResult(raw: MapIdResult & { tile_fetcher?: { url_format?:
   };
 }
 
+/**
+ * When true, skips all in-process Earth Engine caches (mapId, sections GeoJSON, proxied tile buffers).
+ *
+ * Default: cache **disabled** unless `APP_MODE=production` (same notion as the rest of the app: `local` → fresh GEE).
+ * If `APP_MODE` is unset, `getAppMode()` falls back to `NODE_ENV` (production → prod mode, else local).
+ * Override: `EARTH_ENGINE_DISABLE_CACHE=1` forces off; `EARTH_ENGINE_ENABLE_CACHE=1` forces on (e.g. load-test locally).
+ */
+export function isEarthEngineInProcessCacheDisabled(): boolean {
+  const disable = process.env.EARTH_ENGINE_DISABLE_CACHE?.trim().toLowerCase();
+  if (disable === "1" || disable === "true" || disable === "yes") return true;
+  const enable = process.env.EARTH_ENGINE_ENABLE_CACHE?.trim().toLowerCase();
+  if (enable === "1" || enable === "true" || enable === "yes") return false;
+  return getAppMode() !== "production";
+}
+
 const MAPID_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const mapIdCache = new Map<
   string,
@@ -182,24 +198,29 @@ function cacheKey(asset: string, visParams?: Record<string, unknown>): string {
 }
 
 /**
- * Get a map ID for an Earth Engine image or named layer (cached per asset+visParams).
+ * Get a map ID for an Earth Engine image or named layer (cached per asset+visParams when cache is enabled).
  * Use asset "unbsj" for the UNBSJ image + parking sections composite.
  */
 export async function getMapIdCached(
   imageAssetId: string,
   visParams?: { min?: number; max?: number; palette?: string; bands?: string[] }
 ): Promise<MapIdResult> {
+  const noCache = isEarthEngineInProcessCacheDisabled();
   const key = cacheKey(imageAssetId, visParams);
-  const cached = mapIdCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.result;
+  if (!noCache) {
+    const cached = mapIdCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.result;
+  }
   const result =
     imageAssetId === "unbsj"
       ? await getMapIdForUnbsj()
       : await getMapId(imageAssetId, visParams);
-  mapIdCache.set(key, {
-    result,
-    expiresAt: Date.now() + MAPID_CACHE_TTL_MS,
-  });
+  if (!noCache) {
+    mapIdCache.set(key, {
+      result,
+      expiresAt: Date.now() + MAPID_CACHE_TTL_MS,
+    });
+  }
   return result;
 }
 
@@ -208,7 +229,7 @@ export async function getMapIdCached(
  * @param imageAssetId - e.g. "CGIAR/SRTM90_V4" or "USGS/SRTMGL1_003"
  * @param visParams - optional min/max, palette, etc.
  */
-export function getMapId(
+function getMapId(
   imageAssetId: string,
   visParams?: { min?: number; max?: number; palette?: string; bands?: string[] }
 ): Promise<MapIdResult> {
@@ -227,9 +248,9 @@ export function getMapId(
 
 /**
  * UNBSJ composite: TIFF image + parking section polygons (yellow outline, transparent fill).
- * Cached like other map IDs.
+ * Building POIs are drawn client-side from GET /api/buildings/map-markers/geojson (like section hover).
  */
-export function getMapIdForUnbsj(): Promise<MapIdResult> {
+function getMapIdForUnbsj(): Promise<MapIdResult> {
   return new Promise((resolve, reject) => {
     ensureInitialized()
       .then(() => {
@@ -255,6 +276,66 @@ export function getMapIdForUnbsj(): Promise<MapIdResult> {
   });
 }
 
+/** One point from GEE `unbsjMarkersV2` (lon/lat, optional Z in meters if present). */
+export interface BuildingMarkerRaw {
+  geometry: { type: "Point"; coordinates: [number, number] | [number, number, number] };
+  properties: Record<string, unknown>;
+}
+
+/**
+ * Load building marker points from Earth Engine (no DB merge).
+ * Expects Point geometries in `projects/cs4555/assets/unbsjMarkersV2` (feature ids = `buildings.name`).
+ */
+export function getBuildingMarkersFromEarthEngine(): Promise<BuildingMarkerRaw[]> {
+  return new Promise((resolve, reject) => {
+    ensureInitialized()
+      .then(() => {
+        const fc = ee.FeatureCollection(UNBSJ_BUILDING_MARKERS_ASSET);
+        fc.getInfo((info: FeatureCollectionInfo | null, err?: Error) => {
+          if (err) return reject(err);
+          if (!info?.features?.length) return resolve([]);
+          const out: BuildingMarkerRaw[] = [];
+          for (const f of info.features) {
+            const g = f.geometry as { type?: string; coordinates?: unknown } | undefined;
+            if (!g || g.type !== "Point" || !Array.isArray(g.coordinates)) continue;
+            const c = g.coordinates as number[];
+            if (c.length < 2 || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) continue;
+            const raw =
+              f.properties != null && typeof f.properties === "object" && !Array.isArray(f.properties)
+                ? (f.properties as Record<string, unknown>)
+                : {};
+            const props: Record<string, unknown> = { ...raw };
+            const fid = (f as { id?: string | number }).id;
+            if (fid != null && fid !== "") {
+              const sid = typeof fid === "number" ? String(fid) : String(fid).trim();
+              if (sid) {
+                props.geeFeatureId = sid;
+                // GeoJSON often puts the business id only on the feature root; mirror into `properties.id`
+                // so backend matchers see it (numeric EE ids stay out of `id` to avoid shadowing real columns).
+                if (
+                  /[a-zA-Z]/.test(sid) &&
+                  (props.id === undefined || props.id === null || props.id === "")
+                ) {
+                  props.id = sid;
+                }
+              }
+            }
+            const coords: [number, number] | [number, number, number] =
+              c.length >= 3 && Number.isFinite(c[2])
+                ? [c[0]!, c[1]!, c[2]!]
+                : [c[0]!, c[1]!];
+            out.push({
+              geometry: { type: "Point", coordinates: coords },
+              properties: props,
+            });
+          }
+          resolve(out);
+        });
+      })
+      .catch(reject);
+  });
+}
+
 /** GeoJSON FeatureCollection for parking sections (hover/click on map). */
 export interface SectionsGeoJSON {
   type: "FeatureCollection";
@@ -271,10 +352,12 @@ let sectionsCache: { data: SectionsGeoJSON; expiresAt: number } | null = null;
 /**
  * Get parking section polygons as GeoJSON for client-side hover/click.
  * Uses GEE FeatureCollection.getInfo; section name from feature properties (e.g. name, section, or first string prop).
- * Cached 30 min.
+ * Cached 30 min when in-process EE cache is enabled (see `isEarthEngineInProcessCacheDisabled`).
  */
 export function getSectionsGeoJSON(): Promise<SectionsGeoJSON> {
-  if (sectionsCache && sectionsCache.expiresAt > Date.now()) return Promise.resolve(sectionsCache.data);
+  if (!isEarthEngineInProcessCacheDisabled() && sectionsCache && sectionsCache.expiresAt > Date.now()) {
+    return Promise.resolve(sectionsCache.data);
+  }
   return new Promise((resolve, reject) => {
     ensureInitialized()
       .then(() => {
@@ -335,7 +418,9 @@ export function getSectionsGeoJSON(): Promise<SectionsGeoJSON> {
               };
             });
           const data: SectionsGeoJSON = { type: "FeatureCollection", features };
-          sectionsCache = { data, expiresAt: Date.now() + SECTIONS_CACHE_TTL_MS };
+          if (!isEarthEngineInProcessCacheDisabled()) {
+            sectionsCache = { data, expiresAt: Date.now() + SECTIONS_CACHE_TTL_MS };
+          }
           resolve(data);
         });
       })
@@ -391,7 +476,7 @@ function evictTileCacheIfNeeded(): void {
 /**
  * Fetch a single tile from Earth Engine and return the image buffer + content-type.
  * Uses mapInfo.urlFormat when present (replace {z},{x},{y}), else builds URL from mapid+token.
- * Tile responses are cached in memory (24h TTL, max 2000 tiles) to avoid re-fetching from GEE.
+ * Tile responses are cached in memory (24h TTL, max 2000 tiles) when in-process EE cache is enabled.
  */
 export async function fetchTile(
   asset: string,
@@ -400,10 +485,13 @@ export async function fetchTile(
   y: number,
   visParams?: { min?: number; max?: number; palette?: string; bands?: string[] }
 ): Promise<{ buffer: ArrayBuffer; contentType: string }> {
+  const noCache = isEarthEngineInProcessCacheDisabled();
   const key = tileCacheKey(asset, z, x, y, visParams);
-  const cached = tileCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) {
-    return { buffer: cached.buffer, contentType: cached.contentType };
+  if (!noCache) {
+    const cached = tileCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return { buffer: cached.buffer, contentType: cached.contentType };
+    }
   }
 
   const mapInfo = await getMapIdCached(asset, visParams);
@@ -424,45 +512,14 @@ export async function fetchTile(
   const contentType =
     response.headers.get("content-type") || "image/png";
 
-  tileCache.set(key, {
-    buffer,
-    contentType,
-    expiresAt: Date.now() + TILE_CACHE_TTL_MS,
-  });
-  evictTileCacheIfNeeded();
+  if (!noCache) {
+    tileCache.set(key, {
+      buffer,
+      contentType,
+      expiresAt: Date.now() + TILE_CACHE_TTL_MS,
+    });
+    evictTileCacheIfNeeded();
+  }
 
   return { buffer, contentType };
-}
-
-/**
- * Get a thumbnail URL for an Earth Engine image (static PNG/JPG).
- * The URL is temporary and can be used as img src or fetched server-side.
- */
-export function getThumbURL(
-  imageAssetId: string,
-  options: {
-    dimensions?: string;
-    region?: number[][] | object;
-    format?: "png" | "jpg";
-    min?: number;
-    max?: number;
-    bands?: string[];
-  } = {}
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    ensureInitialized()
-      .then(() => {
-        const image = ee.Image(imageAssetId);
-        const params = {
-          dimensions: options.dimensions || "512x512",
-          format: options.format || "png",
-          ...(options.region && { region: options.region }),
-          ...(options.min !== undefined && { min: options.min }),
-          ...(options.max !== undefined && { max: options.max }),
-          ...(options.bands && { bands: options.bands }),
-        };
-        image.getThumbURL(params, (url: string) => resolve(url));
-      })
-      .catch(reject);
-  });
 }

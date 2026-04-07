@@ -1,9 +1,10 @@
 import { useCallback } from "react";
+import L from "leaflet";
 import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
 import type { Feature, GeoJsonObject } from "geojson";
 import type { PathOptions, Layer } from "leaflet";
 import type { ReactNode } from "react";
-import type { ParkingLot } from "../api/types";
+import type { BuildingMapMarkerFeatureProperties, ParkingLot } from "../api/types";
 
 /** UNBSJ image center from GEE: ee.Geometry.Point([-66.08556199592792, 45.3065]) → [lat, lng]. */
 const CENTER: [number, number] = [45.3065, -66.08556199592792];
@@ -31,6 +32,8 @@ interface ParkingMapProps {
   earthEngineTileUrl: string | null;
   /** Parking section polygons for hover tooltip + click to lot */
   sectionsGeoJSON?: GeoJsonObject | null;
+  /** GEE building points merged with DB (tooltips: name, floors, long & lat). */
+  buildingMarkersGeoJSON?: GeoJsonObject | null;
   /** Lots to resolve section name → lot id on click */
   lots?: ParkingLot[];
   /** Called when a section polygon is clicked; pass lot id to navigate */
@@ -89,6 +92,32 @@ function hasScenarioPicked(date: string, time: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(date.trim()) && /^\d{1,2}:\d{2}$/.test(time.trim());
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function buildingMarkerTooltipHtml(p: BuildingMapMarkerFeatureProperties): string {
+  const name = escapeHtml(p.name);
+  const codeLine =
+    p.code != null && String(p.code).trim() !== ""
+      ? `<div class="text-slate-600 text-xs">Code: ${escapeHtml(String(p.code))}</div>`
+      : "";
+  const floors =
+    p.floors != null && Number.isFinite(p.floors) ? String(p.floors) : "—";
+  const lng = Number.isFinite(p.longitude) ? p.longitude.toFixed(6) : "—";
+  const lat = Number.isFinite(p.latitude) ? p.latitude.toFixed(6) : "—";
+  const unmatched =
+    p.matched === false
+      ? `<div class="text-amber-800 text-xs mt-1">Not linked to database — run backend seed to load buildings.</div>`
+      : "";
+  const lonLatLine = `<div class="text-slate-600 text-[11px] mt-1 tabular-nums">Long ${escapeHtml(lng)}, Lat ${escapeHtml(lat)}</div>`;
+  return `<div class="font-medium text-slate-800">${name}</div>${codeLine}<div class="text-slate-700 text-xs mt-1">Floors: ${escapeHtml(floors)}</div>${lonLatLine}${unmatched}`;
+}
+
 /** Calendar compare in the user’s local timezone (scenario `YYYY-MM-DD` vs today). */
 function scenarioDateVsToday(ymd: string): "future" | "past" | "today" | "invalid" {
   const s = ymd.trim();
@@ -130,6 +159,7 @@ const liveBadgeClass =
 export function ParkingMap({
   earthEngineTileUrl,
   sectionsGeoJSON,
+  buildingMarkersGeoJSON,
   lots = [],
   onSectionClick,
   mapDataMode = "live",
@@ -177,6 +207,17 @@ export function ParkingMap({
     [lots, onSectionClick]
   );
 
+  const onEachBuildingMarker = useCallback((feature: GeoJsonObject, layer: Layer) => {
+    const props = (feature as Feature).properties as BuildingMapMarkerFeatureProperties | undefined;
+    if (!props) return;
+    layer.bindTooltip(buildingMarkerTooltipHtml(props), {
+      permanent: false,
+      direction: "top",
+      sticky: true,
+      className: "max-w-[16rem] !bg-white/95 !border !border-slate-200 !shadow-md !rounded-md !px-2 !py-1.5",
+    });
+  }, []);
+
   return (
     <div className={`relative overflow-hidden rounded-lg ${className}`}>
       <MapContainer
@@ -209,6 +250,21 @@ export function ParkingMap({
             data={sectionsGeoJSON}
             style={sectionsStyle}
             onEachFeature={onEachSection}
+          />
+        )}
+        {buildingMarkersGeoJSON && (
+          <GeoJSON
+            data={buildingMarkersGeoJSON}
+            pointToLayer={(_feature, latlng) =>
+              L.circleMarker(latlng, {
+                radius: 8,
+                stroke: false,
+                fill: true,
+                fillColor: "#e60000",
+                fillOpacity: 1,
+              })
+            }
+            onEachFeature={onEachBuildingMarker}
           />
         )}
       </MapContainer>

@@ -17,6 +17,8 @@ declare module "swagger-ui-react" {
 
 interface ImportMetaEnv {
   readonly VITE_API_URL: string;
+  /** When "true" in dev, use VITE_API_URL instead of same-origin proxy. */
+  readonly VITE_DEV_REMOTE_API?: string;
 }
 
 interface ImportMeta {

@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { matchPath, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { api } from "../api/client";
 import { getApiBase } from "../config/apiBase";
-import type { ParkingLot, ParkingSpot, SimulatorState } from "../api/types";
+import { api } from "../api/client";
+import type {
+  BuildingMapMarkersGeoJSON,
+  ParkingLot,
+  ParkingSpot,
+  SimulatorState,
+} from "../api/types";
+import { HomeIndexLoadingSkeleton } from "../components/HomeIndexLoadingSkeleton";
 import { ParkingMap, type ParkingMapDataMode } from "../components/ParkingMap";
 import unbLogoAlternate from "../images/UNBlogoAlternate.png";
 import type { HomeOutletContextValue, LotSortOption } from "./Home";
@@ -101,6 +107,9 @@ export function CampusShell() {
   const [tileUrl, setTileUrl] = useState<string | null>(null);
   const [tileUrlError, setTileUrlError] = useState<string | null>(null);
   const [sectionsGeoJSON, setSectionsGeoJSON] = useState<SectionsGeoJSON | null>(null);
+  const [buildingMarkersGeoJSON, setBuildingMarkersGeoJSON] = useState<BuildingMapMarkersGeoJSON | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lotSort, setLotSort] = useState<LotSortOption>("biggest");
@@ -139,16 +148,6 @@ export function CampusShell() {
       /* private mode / quota */
     }
   }, [mapDataMode, mapScenarioDate, mapScenarioTimeHHmm, scenarioSyncedKey]);
-
-  useEffect(() => {
-    api
-      .get<SimulatorState>("/api/simulator")
-      .then((s) => {
-        setSimPaused(s.paused);
-        setSimMapMode(s.mapMode);
-      })
-      .catch(() => {});
-  }, []);
 
   const activateLiveMap = useCallback(async () => {
     const wasPickTime = mapDataMode === "pick-time";
@@ -231,6 +230,10 @@ export function CampusShell() {
   const applyPlanPausedScenario = useCallback(
     async (dateYmd: string, timeHHmm: string) => {
       if (!isValidScenarioDateYmd(dateYmd) || !isValidScenarioTimeHm(timeHHmm)) return;
+      const key = scenarioKey(dateYmd, timeHHmm);
+      // Mark skip before any async gap so the debounced effect cannot enqueue
+      // a second non-deterministic apply for this same programmatic scenario.
+      programmaticScenarioSkipDebounceRef.current = key;
       if (applyDebounceRef.current) {
         clearTimeout(applyDebounceRef.current);
         applyDebounceRef.current = null;
@@ -246,8 +249,6 @@ export function CampusShell() {
       } catch {
         /* still apply occupancy snapshot */
       }
-      const key = scenarioKey(dateYmd, timeHHmm);
-      programmaticScenarioSkipDebounceRef.current = key;
       await performScenarioApply(dateYmd, timeHHmm, { deterministic: true });
     },
     [performScenarioApply]
@@ -267,24 +268,23 @@ export function CampusShell() {
     const runLive = mapDataMode === "live" && !simPaused;
     const runScenario = mapDataMode === "pick-time" && simMapMode === "scenario" && !simPaused;
     if (!runLive && !runScenario) return;
-
     let cancelled = false;
     const poll = () => {
       if (cancelled || document.hidden || !navigator.onLine) return;
-      api.get<ParkingSpot[]>("/api/parking-spots").then((s) => { if (!cancelled) setSpots(s); }).catch(() => {});
+      api.get<ParkingSpot[]>("/api/parking-spots").then(setSpots).catch(() => {});
     };
+    const onResume = () => poll();
+    poll();
     const id = window.setInterval(poll, POLL_INTERVAL_MS);
-    const onVisible = () => { if (!document.hidden && navigator.onLine) poll(); };
-    const onOnline = () => poll();
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onVisible);
-    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", onResume);
+    window.addEventListener("online", onResume);
     return () => {
       cancelled = true;
       clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onVisible);
-      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onResume);
+      window.removeEventListener("online", onResume);
     };
   }, [mapDataMode, simPaused, simMapMode]);
 
@@ -302,36 +302,68 @@ export function CampusShell() {
   }, []);
 
   useEffect(() => {
-    // Sync live occupancy before fetching initial data so map reflects current simulator state.
-    api
-      .post("/api/parking-spots/apply-live", {})
-      .catch(() => {})
-      .finally(() => {
-        Promise.all([
+    let cancelled = false;
+    const load = async () => {
+      try {
+        // UI can restore "Live" from session while the server still holds a scenario
+        // snapshot; match activateLiveMap by syncing live occupancy before first fetch.
+        if (persistedMap.mapDataMode === "live") {
+          try {
+            await api.post("/api/parking-spots/apply-live", {});
+          } catch (e) {
+            if (!cancelled) {
+              setScenarioApplyError(
+                e instanceof Error ? e.message : "Could not sync live occupancy on load"
+              );
+            }
+          }
+        }
+        if (cancelled) return;
+        const [lotsData, spotsData, simState] = await Promise.all([
           api.get<ParkingLot[]>("/api/parking-lots"),
           api.get<ParkingSpot[]>("/api/parking-spots"),
-        ])
-          .then(([lotsData, spotsData]) => {
-            setLots(lotsData);
-            setSpots(spotsData);
-          })
-          .catch((e) => setError(e.message))
-          .finally(() => setLoading(false));
-      });
-  }, []);
+          api.get<SimulatorState>("/api/simulator"),
+        ]);
+        if (cancelled) return;
+        setLots(lotsData);
+        setSpots(spotsData);
+        setSimPaused(simState.paused);
+        setSimMapMode(simState.mapMode);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [persistedMap.mapDataMode]);
 
   useEffect(() => {
     api
-      .get<{ tileUrl: string }>(`${API_BASE}/api/earth-engine/tiles`)
-      .then((data) => setTileUrl(data.tileUrl))
+      .get<{ tileUrl: string }>("/api/earth-engine/tiles")
+      .then((data) => {
+        const raw = data.tileUrl ?? "";
+        const resolved = raw.startsWith("/") && API_BASE ? `${API_BASE}${raw}` : raw;
+        setTileUrl(resolved);
+      })
       .catch((e) => setTileUrlError(e.message));
   }, []);
 
   useEffect(() => {
     api
-      .get<SectionsGeoJSON>(`${API_BASE}/api/earth-engine/sections`)
+      .get<SectionsGeoJSON>("/api/earth-engine/sections")
       .then(setSectionsGeoJSON)
       .catch(() => setSectionsGeoJSON(null));
+  }, []);
+
+  useEffect(() => {
+    api
+      .get<BuildingMapMarkersGeoJSON>("/api/buildings/map-markers/geojson")
+      .then(setBuildingMarkersGeoJSON)
+      .catch(() => setBuildingMarkersGeoJSON(null));
   }, []);
 
   const sectionsWithLotNames = useMemo(() => {
@@ -394,6 +426,11 @@ export function CampusShell() {
     });
   }, [lots, spots]);
 
+  const parkingOccupancySignature = useMemo(
+    () => spots.map((s) => `${s.id}:${s.currentStatus}`).join("|"),
+    [spots]
+  );
+
   const sortedByLot = useMemo(() => {
     const sorted = [...byLot];
     switch (lotSort) {
@@ -419,6 +456,10 @@ export function CampusShell() {
       lotSort,
       setLotSort,
       navigate,
+      mapDataMode,
+      mapScenarioDate,
+      mapScenarioTimeHHmm,
+      parkingOccupancySignature,
       applyPlanPausedScenario,
       applyPlanScenarioIfChanged,
       setDayPlanMapLoading,
@@ -430,6 +471,10 @@ export function CampusShell() {
       sortedByLot,
       lotSort,
       navigate,
+      mapDataMode,
+      mapScenarioDate,
+      mapScenarioTimeHHmm,
+      parkingOccupancySignature,
       applyPlanPausedScenario,
       applyPlanScenarioIfChanged,
       setDayPlanMapLoading,
@@ -438,16 +483,7 @@ export function CampusShell() {
   );
 
   if (onHomeIndex && loading) {
-    return (
-      <div className="max-w-5xl mx-auto px-6 py-10 space-y-6">
-        <div className="skeleton h-8 w-40" />
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-        </div>
-      </div>
-    );
+    return <HomeIndexLoadingSkeleton />;
   }
 
   if (onHomeIndex && error) {
@@ -606,6 +642,7 @@ export function CampusShell() {
           <ParkingMap
             earthEngineTileUrl={tileUrl}
             sectionsGeoJSON={sectionsWithLotNames}
+            buildingMarkersGeoJSON={buildingMarkersGeoJSON}
             lots={lots}
             onSectionClick={(lotId) => navigate(`/lot/${lotId}`)}
             mapDataMode={mapDataMode}

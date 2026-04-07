@@ -2,6 +2,10 @@ node_modules/
 BE/node_modules/
 FE/node_modules/
 BE/dist/
+FE/dist/
+dist/
+BE/.env
+FE/.env
 BE/serviceAccount.json
 
 # Local database — never commit

@@ -5,10 +5,14 @@ import * as buildingService from "../buildings/building.service";
 import * as lotBuildingDistanceService from "../buildings/lotBuildingDistance.service";
 import { campusOccupancyInstantForMoncton } from "../../utils/occupancySignal";
 import {
+  churnFromTriple,
+  classTransitionChurnMultiplier,
   clockToMinutes,
   getWinter2026Slots,
+  loadPplOnCampusProfile,
   minutesToSlotIndex,
   parseScenarioMoncton,
+  profileInstantForMoncton,
   targetOccupancyRatio,
   UNBSJ_TIMEZONE,
 } from "../../utils/campusOccupancyProfile";
@@ -17,6 +21,10 @@ import { DateTime } from "luxon";
 import * as parkingSpotService from "./parkingSpot.service";
 import { invalidateCache } from "../../middleware/cache";
 import { getArrivalPlanTermCodes, normalizeArrivalTermCode } from "../../utils/arrivalPlanTerms";
+import type { OccupancySignalSourceId } from "../../utils/occupancySignal";
+import { ParkingLot } from "../parkingLots/parkingLot.entity";
+import { In } from "typeorm";
+import { AppDataSource } from "../../db/data-source";
 
 const D0_M = 35;
 const DIST_POW = 1.45;
@@ -336,6 +344,225 @@ export async function previewScenarioAssignmentAt(dateYmd: string, timeHm: strin
     totalSpots: rows.length,
     spotRows: rows.map((r) => ({ id: r.id, parkingLotId: r.parkingLotId })),
   };
+}
+
+export type LotForecastRow = {
+  parkingLotId: string;
+  name: string;
+  spotCount: number;
+  predictedOccupied: number;
+  predictedFree: number;
+  predictedOccupancyPercent: number;
+};
+
+export type ParkingForecastInsights = {
+  /** Catalog term on the profile file (e.g. 2026/WI). */
+  profileTermLabel: string;
+  coursesInProfileFile: number | null;
+  /** 15-minute bucket local times from `pplOnCampusByTime.json`. */
+  profileSlotStart: string;
+  profileSlotEnd: string;
+  /** Saturday/Sunday uses a sparse-campus multiplier on the vehicle curve. */
+  weekendApplied: boolean;
+  weekendMultiplier: number;
+  /** Modeled vehicles on campus (midpoint band, after weekend scale). */
+  modeledCarsOnCampus: number;
+  modeledCarsOnCampusMin?: number;
+  modeledCarsOnCampusMax?: number;
+  /** 0–100: this bucket’s modeled cars vs all buckets (same weekend scaling). Higher = busier time-of-day. */
+  profileBusyPercentile: number;
+  /** Enrollment proxy baked into the profile JSON for this 15m bucket (typical class-week pattern). */
+  profileClassEnrolledProxy: number | null;
+  /** Sections counted in the profile for this bucket. */
+  profileSectionsMeeting: number | null;
+  /** Sum of enrolled (min 1) for sections overlapping this bucket from the **live** course database (by building). */
+  liveDbClassOverlapEnrollmentSum: number;
+  /** Buildings with at least one overlapping section in the live DB. */
+  liveDbBuildingsWithClasses: number;
+  occupancyTrendNextSlot: "up" | "down" | "steady";
+  occupancyTrendSummary: string;
+  /** Simulator churn boost near class-change minutes. */
+  classTransitionMultiplier: number;
+  classTransitionSummary: string | null;
+  /** If every stall saw the same fill ratio as the campus curve midpoint (lot weighting changes the real map). */
+  curveEvenSpreadOccupancyPercent: number;
+};
+
+export type ParkingForecastResponse = {
+  date: string;
+  time: string;
+  timezone: string;
+  signalSource: OccupancySignalSourceId;
+  modelNote: string;
+  campusPredictedOccupancyPercent: number;
+  kTotal: number;
+  totalSpots: number;
+  lots: LotForecastRow[];
+  insights: ParkingForecastInsights;
+};
+
+async function buildForecastInsights(dt: DateTime, totalSpots: number): Promise<ParkingForecastInsights> {
+  const z = dt.setZone(UNBSJ_TIMEZONE);
+  const inst = profileInstantForMoncton(z);
+  const slots = getWinter2026Slots();
+  const rawSlot = slots[inst.slotIndex]!;
+  const mult = inst.weekendMultiplier;
+
+  const scaledMids = slots.map((s) => s.carsOnCampusMidpoint * mult);
+  const currScaled = inst.carsCurr;
+  const sorted = [...scaledMids].sort((a, b) => a - b);
+  const below = sorted.filter((x) => x < currScaled).length;
+  const profileBusyPercentile = scaledMids.length ? Math.round((below / scaledMids.length) * 100) : 0;
+
+  const { trend } = churnFromTriple(inst.carsPrev, inst.carsCurr, inst.carsNext);
+  let occupancyTrendNextSlot: "up" | "down" | "steady";
+  let occupancyTrendSummary: string;
+  if (trend > 0.12) {
+    occupancyTrendNextSlot = "up";
+    occupancyTrendSummary =
+      "The campus vehicle curve rises into the next 15-minute block versus the previous one—typical of approaching peak demand.";
+  } else if (trend < -0.12) {
+    occupancyTrendNextSlot = "down";
+    occupancyTrendSummary =
+      "The curve eases into the next 15-minute block—demand is cooling compared to the prior bucket.";
+  } else {
+    occupancyTrendNextSlot = "steady";
+    occupancyTrendSummary = "Neighboring 15-minute buckets are similar on the modeled vehicle curve.";
+  }
+
+  const slotStartMin = clockToMinutes(rawSlot.slotStart);
+  const demand = await buildingDemandForScenarioWindow(slotStartMin);
+  let liveDbClassOverlapEnrollmentSum = 0;
+  let liveDbBuildingsWithClasses = 0;
+  for (const v of demand.values()) {
+    if (v > 0) {
+      liveDbBuildingsWithClasses++;
+      liveDbClassOverlapEnrollmentSum += v;
+    }
+  }
+
+  const transition = classTransitionChurnMultiplier(z);
+  const classTransitionSummary =
+    transition > 1.2
+      ? "Near a typical class-change minute; the live simulator applies extra stall churn here."
+      : null;
+
+  const ppl = loadPplOnCampusProfile();
+  const w = ppl.winter2026;
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+
+  return {
+    profileTermLabel: w.term ?? "Winter profile",
+    coursesInProfileFile: typeof w.coursesIncluded === "number" ? w.coursesIncluded : null,
+    profileSlotStart: rawSlot.slotStart,
+    profileSlotEnd: rawSlot.slotEnd,
+    weekendApplied: mult !== 1,
+    weekendMultiplier: mult,
+    modeledCarsOnCampus: round1(inst.carsCurr),
+    modeledCarsOnCampusMin:
+      rawSlot.carsOnCampusMin != null ? round1(rawSlot.carsOnCampusMin * mult) : undefined,
+    modeledCarsOnCampusMax:
+      rawSlot.carsOnCampusMax != null ? round1(rawSlot.carsOnCampusMax * mult) : undefined,
+    profileBusyPercentile,
+    profileClassEnrolledProxy:
+      typeof rawSlot.totalEnrolledInClass === "number" ? rawSlot.totalEnrolledInClass : null,
+    profileSectionsMeeting: typeof rawSlot.sectionsMeeting === "number" ? rawSlot.sectionsMeeting : null,
+    liveDbClassOverlapEnrollmentSum,
+    liveDbBuildingsWithClasses,
+    occupancyTrendNextSlot,
+    occupancyTrendSummary,
+    classTransitionMultiplier: Math.round(transition * 100) / 100,
+    classTransitionSummary,
+    curveEvenSpreadOccupancyPercent:
+      totalSpots > 0 ? Math.round(targetOccupancyRatio(inst.carsCurr, totalSpots) * 100) : 0,
+  };
+}
+
+function normalizeForecastTimeHm(timeQ: string): string {
+  const m = timeQ.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return timeQ.trim();
+  const h = parseInt(m[1]!, 10);
+  const min = m[2]!;
+  return `${String(h).padStart(2, "0")}:${min}`;
+}
+
+/**
+ * Deterministic model snapshot for a Moncton-local instant (no DB writes).
+ * Matches `apply-scenario` with `deterministic: true` for the same date/time.
+ */
+export async function getParkingForecastSummary(dateYmd: string, timeHmRaw: string): Promise<ParkingForecastResponse> {
+  const timeHm = normalizeForecastTimeHm(timeHmRaw);
+  const preview = await previewScenarioAssignmentAt(dateYmd, timeHm);
+  const dt = parseScenarioMoncton(dateYmd, timeHm);
+  if (!dt) throw new Error("Invalid scenario date or time");
+  const prof = campusOccupancyInstantForMoncton(dt.setZone(UNBSJ_TIMEZONE));
+
+  const byLot = new Map<string, { total: number; occ: number }>();
+  for (const row of preview.spotRows) {
+    const st = preview.spotIdToStatus.get(row.id) ?? "empty";
+    const cur = byLot.get(row.parkingLotId) ?? { total: 0, occ: 0 };
+    cur.total++;
+    if (st === "occupied") cur.occ++;
+    byLot.set(row.parkingLotId, cur);
+  }
+
+  const lotIds = [...byLot.keys()];
+  const lotRepo = AppDataSource.getRepository(ParkingLot);
+  const lotRows = lotIds.length > 0 ? await lotRepo.find({ where: { id: In(lotIds) } }) : [];
+  const lotById = new Map(lotRows.map((l) => [l.id, l]));
+
+  const lots: LotForecastRow[] = lotIds.map((parkingLotId) => {
+    const agg = byLot.get(parkingLotId)!;
+    const lot = lotById.get(parkingLotId);
+    const name = lot?.name ?? parkingLotId;
+    const pct = agg.total > 0 ? Math.round((agg.occ / agg.total) * 100) : 0;
+    return {
+      parkingLotId,
+      name,
+      spotCount: agg.total,
+      predictedOccupied: agg.occ,
+      predictedFree: agg.total - agg.occ,
+      predictedOccupancyPercent: pct,
+    };
+  });
+  lots.sort((a, b) => b.predictedOccupancyPercent - a.predictedOccupancyPercent);
+
+  const campusPct =
+    preview.totalSpots > 0 ? Math.round((preview.kTotal / preview.totalSpots) * 100) : 0;
+
+  const insights = await buildForecastInsights(dt, preview.totalSpots);
+
+  return {
+    date: dateYmd,
+    time: timeHm,
+    timezone: UNBSJ_TIMEZONE,
+    signalSource: prof.source,
+    modelNote:
+      "UNB Saint John campus model: time-of-day curve plus class demand and walking distances (read-only; same basis as a deterministic map scenario).",
+    campusPredictedOccupancyPercent: campusPct,
+    kTotal: preview.kTotal,
+    totalSpots: preview.totalSpots,
+    lots,
+    insights,
+  };
+}
+
+const FORECAST_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const FORECAST_TIME_RE = /^(\d{1,2}):(\d{2})$/;
+
+/**
+ * When both `date` and `time` query parts are valid, use them; otherwise Moncton “now”.
+ */
+export async function getParkingForecastForRequest(dateQ: string, timeQ: string): Promise<ParkingForecastResponse> {
+  const d = dateQ.trim();
+  const t = timeQ.trim();
+  if (FORECAST_DATE_RE.test(d) && FORECAST_TIME_RE.test(t)) {
+    const tm = t.match(FORECAST_TIME_RE)!;
+    const timeHm = `${String(parseInt(tm[1]!, 10)).padStart(2, "0")}:${tm[2]!}`;
+    return getParkingForecastSummary(d, timeHm);
+  }
+  const now = DateTime.now().setZone(UNBSJ_TIMEZONE);
+  return getParkingForecastSummary(now.toFormat("yyyy-MM-dd"), now.toFormat("HH:mm"));
 }
 
 export async function applyScenarioOccupancy(

@@ -2,8 +2,7 @@ import "reflect-metadata";
 import path from "path";
 import express from "express";
 import cors from "cors";
-import { AppDataSource } from "./db/data-source";
-import { DB_CONNECTION_SUMMARY } from "./db/data-source";
+import { AppDataSource, DB_CONNECTION_SUMMARY } from "./db/data-source";
 import { getAppMode, isLocalAppMode } from "./config/appMode";
 import { initializeEarthEngine } from "./config/earthEngine";
 import { notFound, errorHandler, requestLogger, loggingMiddleware } from "./middleware";
@@ -27,31 +26,42 @@ import * as campusParameterService from "./modules/campusParameters/campusParame
 
 const PORT = process.env.PORT || 3000;
 
-async function main() {
-  await AppDataSource.initialize();
-  await initializeEarthEngine();
+const fromEnv = (process.env.CORS_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .map((s) => s.replace(/\/+$/, ""))
+  .filter(Boolean);
 
+async function main() {
   const mode = getAppMode();
-  console.log(`[App] Mode: ${mode} | DB: ${DB_CONNECTION_SUMMARY}`);
+  const local = isLocalAppMode();
+  console.log(
+    `[app] APP_MODE=${mode}${local ? " (SQLite file, permissive CORS)" : " (CORS from CORS_ALLOWED_ORIGINS; Postgres if configured)"}`
+  );
+
+  await AppDataSource.initialize();
+  console.log(`[db] Connected: ${DB_CONNECTION_SUMMARY}`);
+  await initializeEarthEngine();
 
   // Seed campus behavioural parameters (carpool, absence rates) if not present
   await campusParameterService.ensureDefaults();
 
   const app = express();
-
-  // CORS — allow same-origin in local dev; in production allow the configured frontend origin.
-  if (isLocalAppMode()) {
-    app.use(cors());
-  } else {
-    const allowedOrigin = process.env.FRONTEND_ORIGIN ?? "";
-    app.use(
-      cors({
-        origin: allowedOrigin || true,
-        credentials: true,
-      })
-    );
-  }
-
+  app.use(
+    cors({
+      origin: local
+        ? true
+        : fromEnv.length > 0
+          ? (origin, callback) => {
+              if (!origin) return callback(null, true);
+              const normalized = origin.replace(/\/+$/, "");
+              if (fromEnv.includes(normalized)) return callback(null, true);
+              return callback(new Error(`CORS blocked for origin: ${origin}`));
+            }
+          : true,
+      credentials: true,
+    })
+  );
   app.use(express.json());
   app.use(requestLogger);
   app.use(loggingMiddleware);

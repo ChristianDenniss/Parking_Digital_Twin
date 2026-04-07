@@ -1,6 +1,6 @@
-import "reflect-metadata";
 import "dotenv/config";
-import { DataSource } from "typeorm";
+import "reflect-metadata";
+import { DataSource, type DataSourceOptions } from "typeorm";
 import path from "path";
 import { isLocalAppMode } from "../config/appMode";
 import { ParkingLot } from "../modules/parkingLots/parkingLot.entity";
@@ -16,57 +16,57 @@ import { LotBuildingDistance } from "../modules/buildings/lotBuildingDistance.en
 import { CampusParameter } from "../modules/campusParameters/campusParameter.entity";
 import { LotOccupancyCorrection } from "../modules/prediction/lotOccupancyCorrection.entity";
 
-const ENTITIES = [
-  ParkingLot,
-  ParkingSpot,
-  ParkingSpotLog,
-  HistoricalProxyData,
-  User,
-  Student,
-  Course,
-  ClassSchedule,
-  Building,
-  LotBuildingDistance,
-  CampusParameter,
-  LotOccupancyCorrection,
-];
+const dbPath = path.join(__dirname, "..", "..", "data", "database.sqlite");
+const databaseUrlRaw =
+  process.env.DATABASE_CONNECTION_STRING?.trim() || process.env.DATABASE_URL?.trim();
+/** Local mode always uses SQLite so .env can keep prod DB strings without affecting dev. */
+const databaseUrl = isLocalAppMode() ? undefined : databaseUrlRaw;
+const usePostgres = Boolean(databaseUrl);
+const postgresHost = (() => {
+  if (!databaseUrl) return null;
+  try {
+    return new URL(databaseUrl).host;
+  } catch {
+    return null;
+  }
+})();
 
-function createDataSource(): DataSource {
-  if (isLocalAppMode()) {
-    const dbPath = path.join(__dirname, "..", "..", "data", "database.sqlite");
-    return new DataSource({
+const baseOptions = {
+  synchronize: true,
+  logging: false,
+  entities: [
+    ParkingLot,
+    ParkingSpot,
+    ParkingSpotLog,
+    HistoricalProxyData,
+    User,
+    Student,
+    Course,
+    ClassSchedule,
+    Building,
+    LotBuildingDistance,
+    CampusParameter,
+    LotOccupancyCorrection,
+  ],
+  migrations: [],
+  subscribers: [],
+};
+
+const dataSourceOptions: DataSourceOptions = usePostgres
+  ? {
+      ...baseOptions,
+      type: "postgres",
+      url: databaseUrl,
+      ssl: { rejectUnauthorized: false },
+    }
+  : {
+      ...baseOptions,
       type: "better-sqlite3",
       database: dbPath,
-      synchronize: true,
-      logging: false,
-      entities: ENTITIES,
-      migrations: [],
-      subscribers: [],
-    });
-  }
+    };
 
-  // Production: Postgres (Supabase or any Postgres host)
-  const connectionString =
-    process.env.DATABASE_CONNECTION_STRING ?? process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error(
-      "DATABASE_CONNECTION_STRING (or DATABASE_URL) must be set in production mode."
-    );
-  }
-  return new DataSource({
-    type: "postgres",
-    url: connectionString,
-    synchronize: true,
-    logging: false,
-    ssl: { rejectUnauthorized: false },
-    entities: ENTITIES,
-    migrations: [],
-    subscribers: [],
-  });
-}
+export const AppDataSource = new DataSource(dataSourceOptions);
 
-export const AppDataSource = createDataSource();
-
-export const DB_CONNECTION_SUMMARY = isLocalAppMode()
-  ? "SQLite (local)"
-  : `Postgres (${(process.env.DATABASE_CONNECTION_STRING ?? process.env.DATABASE_URL ?? "").replace(/:[^:@]*@/, ":***@")})`;
+export const DB_CONNECTION_SUMMARY = usePostgres
+  ? `Supabase/Postgres (${postgresHost ?? "host unavailable"})`
+  : `local SQLite (${dbPath})`;

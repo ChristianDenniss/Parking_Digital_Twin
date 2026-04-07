@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useOutletContext } from "react-router-dom";
 import type { NavigateFunction } from "react-router-dom";
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import type {
   Building,
+  BuildingParkingRecommendationResponse,
   DayArrivalPlanResponse,
   DayArrivalSegment,
   EventSize,
@@ -11,12 +12,51 @@ import type {
   ParkingSpot,
   QuickRecommendResponse,
 } from "../api/types";
+import type { ParkingMapDataMode } from "../components/ParkingMap";
+import { ParkingForecastSection } from "../components/ParkingForecastSection";
 
 function formatLocalTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+/** Same rules as map / forecast: valid calendar date for scenario picker. */
+function isValidMapScenarioDateYmd(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T12:00:00`);
+  return !Number.isNaN(d.getTime());
+}
+
+function isValidMapScenarioTimeHm(s: string): boolean {
+  const m = s.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return false;
+  const h = parseInt(m[1]!, 10);
+  const min = parseInt(m[2]!, 10);
+  return h >= 0 && h <= 23 && min >= 0 && min <= 59;
+}
+
+/**
+ * Interpret map "Pick time" date + time in the browser's local timezone (matches `<input type="date|time">`).
+ * Returned instant is the deadline for being at the building (floor chosen separately).
+ */
+function parseMapScenarioDeadlineLocal(dateYmd: string, timeHHmm: string): Date | null {
+  if (!isValidMapScenarioDateYmd(dateYmd) || !isValidMapScenarioTimeHm(timeHHmm)) return null;
+  const tm = timeHHmm.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!tm) return null;
+  const h = parseInt(tm[1]!, 10);
+  const min = tm[2]!;
+  const d = new Date(`${dateYmd}T${String(h).padStart(2, "0")}:${min}:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function sameLocalCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 function spotLabel(spot: ParkingSpot): string {
@@ -46,6 +86,14 @@ export type HomeOutletContextValue = {
   lotSort: LotSortOption;
   setLotSort: (v: LotSortOption) => void;
   navigate: NavigateFunction;
+  /** Matches campus map: live occupancy vs scenario snapshot already applied to spots. */
+  mapDataMode: ParkingMapDataMode;
+  mapScenarioDate: string;
+  mapScenarioTimeHHmm: string;
+  /**
+   * Fingerprint of all spot statuses. When this changes (e.g. map poll / simulator tick), building recommendations should refresh.
+   */
+  parkingOccupancySignature: string;
   /**
    * Day parking plan: switch map to Pick time, set simulator to scenario + paused, apply snapshot (deterministic).
    */
@@ -59,6 +107,11 @@ export type HomeOutletContextValue = {
 };
 
 const DAY_PLAN_CACHE_PREFIX = "dt_day_plan_v1";
+
+/** Match BE `arrivalRecommendation.service` defaults for display-only estimates */
+const REC_WALK_METERS_PER_MINUTE = 80;
+const REC_MINUTES_PER_FLOOR = 2;
+const REC_CONGESTION_OCCUPANCY_SCALE = 0.12;
 
 function dayPlanCacheKey(token: string, planDateYmd: string): string {
   return `${DAY_PLAN_CACHE_PREFIX}:${token.slice(0, 16)}:${planDateYmd}`;
@@ -77,6 +130,8 @@ function getOccupancyColorClass(pct: number): string {
   return "text-green-800 font-medium";                  // Very open (< 40%)
 }
 
+type PlanPanelMode = "schedule" | "building";
+
 function DayParkingPlanCard(props: {
   token: string | null;
   planDate: string;
@@ -85,6 +140,10 @@ function DayParkingPlanCard(props: {
   setDayPlanMapLoading: (loading: boolean) => void;
   scrollCampusMapIntoView: () => void;
   navigate: NavigateFunction;
+  mapDataMode: ParkingMapDataMode;
+  mapScenarioDate: string;
+  mapScenarioTimeHHmm: string;
+  parkingOccupancySignature: string;
 }) {
   const {
     token,
@@ -94,12 +153,40 @@ function DayParkingPlanCard(props: {
     setDayPlanMapLoading,
     scrollCampusMapIntoView,
     navigate,
+    mapDataMode,
+    mapScenarioDate,
+    mapScenarioTimeHHmm,
+    parkingOccupancySignature,
   } = props;
+  const [planPanelMode, setPlanPanelMode] = useState<PlanPanelMode>("schedule");
   const [plan, setPlan] = useState<DayArrivalPlanResponse | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [buildingsLoading, setBuildingsLoading] = useState(false);
+  const [buildingsError, setBuildingsError] = useState<string | null>(null);
+  const [selectedBuildingId, setSelectedBuildingId] = useState("");
+  const [selectedFloor, setSelectedFloor] = useState(1);
+  const [buildingRec, setBuildingRec] = useState<BuildingParkingRecommendationResponse | null>(null);
+  const [buildingRecLoading, setBuildingRecLoading] = useState(false);
+  const [buildingRecError, setBuildingRecError] = useState<string | null>(null);
   const applyIfChangedRef = useRef(applyPlanScenarioIfChanged);
   applyIfChangedRef.current = applyPlanScenarioIfChanged;
+
+  const selectedBuilding = useMemo(
+    () => buildings.find((b) => b.id === selectedBuildingId) ?? null,
+    [buildings, selectedBuildingId]
+  );
+
+  const maxFloor = useMemo(() => {
+    const f = selectedBuilding?.floors;
+    if (typeof f === "number" && Number.isFinite(f) && f >= 1) return Math.min(f, 50);
+    return 10;
+  }, [selectedBuilding]);
+
+  useEffect(() => {
+    setSelectedFloor((prev) => Math.min(Math.max(1, prev), maxFloor));
+  }, [maxFloor, selectedBuildingId]);
 
   const loadPlan = useCallback(
     (opts?: { force?: boolean }) => {
@@ -171,6 +258,74 @@ function DayParkingPlanCard(props: {
   useEffect(() => {
     loadPlan();
   }, [loadPlan]);
+
+  useEffect(() => {
+    if (planPanelMode !== "building") return;
+    let cancelled = false;
+    setBuildingsLoading(true);
+    setBuildingsError(null);
+    api
+      .get<Building[]>("/api/buildings")
+      .then((data) => {
+        if (!cancelled) setBuildings(data);
+      })
+      .catch((e) => {
+        if (!cancelled) setBuildingsError(e instanceof Error ? e.message : "Could not load buildings");
+      })
+      .finally(() => {
+        if (!cancelled) setBuildingsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [planPanelMode]);
+
+  useEffect(() => {
+    if (planPanelMode !== "building") {
+      setBuildingRec(null);
+      setBuildingRecError(null);
+      setBuildingRecLoading(false);
+      return;
+    }
+    if (!selectedBuildingId) {
+      setBuildingRec(null);
+      setBuildingRecError(null);
+      setBuildingRecLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setBuildingRecError(null);
+    setBuildingRecLoading(true);
+    api
+      .post<BuildingParkingRecommendationResponse>(
+        "/api/parking-lots/recommendation",
+        { buildingId: selectedBuildingId, stateMode: "current" },
+        token ?? undefined
+      )
+      .then((data) => {
+        if (!cancelled) {
+          setBuildingRec(data);
+          setBuildingRecError(null);
+        }
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        if (e instanceof ApiError && e.status === 404) {
+          setBuildingRec(null);
+          setBuildingRecError(
+            "No eligible lot with a free stall for this building under your account rules, or lot distances are not configured."
+          );
+          return;
+        }
+        setBuildingRecError(e instanceof Error ? e.message : "Could not load recommendation");
+      })
+      .finally(() => {
+        if (!cancelled) setBuildingRecLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [planPanelMode, selectedBuildingId, parkingOccupancySignature, token]);
 
   const openParkingStep = (href: string, os: { dateYmd: string; timeHHmm: string }) => {
     scrollCampusMapIntoView();
@@ -279,80 +434,357 @@ function DayParkingPlanCard(props: {
     );
   };
 
+  const buildingWalkMinutes =
+    buildingRec != null
+      ? Math.max(1, Math.ceil(buildingRec.distanceMeters / REC_WALK_METERS_PER_MINUTE))
+      : 0;
+  const buildingInBuildingMinutes = selectedFloor * REC_MINUTES_PER_FLOOR;
+  const buildingCongestionMinutes =
+    buildingRec != null
+      ? Math.min(15, Math.round(buildingRec.occupancyPercent * REC_CONGESTION_OCCUPANCY_SCALE))
+      : 0;
+
+  const buildingTravelTotalMinutes =
+    buildingWalkMinutes + buildingInBuildingMinutes + buildingCongestionMinutes;
+
+  const mapScenarioDeadlineLocal = useMemo(() => {
+    if (mapDataMode !== "pick-time") return null;
+    return parseMapScenarioDeadlineLocal(mapScenarioDate, mapScenarioTimeHHmm);
+  }, [mapDataMode, mapScenarioDate, mapScenarioTimeHHmm]);
+
+  const buildingParkedByForScenario = useMemo(() => {
+    if (!mapScenarioDeadlineLocal || !buildingRec) return null;
+    return new Date(mapScenarioDeadlineLocal.getTime() - buildingTravelTotalMinutes * 60_000);
+  }, [mapScenarioDeadlineLocal, buildingRec, buildingTravelTotalMinutes]);
+
+  const openBuildingLotMap = (href: string) => {
+    scrollCampusMapIntoView();
+    navigate(href);
+  };
+
   return (
     <section
       className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4"
-      aria-labelledby="day-parking-plan-heading"
+      aria-labelledby="parking-recommendations-heading"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="space-y-3">
         <div>
-          <h2 id="day-parking-plan-heading" className="text-lg font-semibold text-slate-900">
-            Your day parking plan
+          <h2 id="parking-recommendations-heading" className="text-lg font-semibold text-slate-900">
+            Parking recommendations
           </h2>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Pick a date to load your plan. Only <strong>initial arrival</strong> and{" "}
-            <strong>return &amp; park</strong> steps are clickable (they open the lot heat map with the suggested
-            stall highlighted). <strong>Between classes</strong> / stay-on-campus blocks are informational only. Long
-            gaps (&gt; 60 min, or the threshold shown below once loaded) assume you left campus and need to park
-            again.
+            Switch between your <strong>class schedule</strong> plan and a <strong>manual building</strong> destination.
+            Both use the same eligibility rules as your account; the building view tracks spot changes as the campus map
+            refreshes.
           </p>
         </div>
-        {token ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-sm text-slate-600 flex items-center gap-2">
-              Date
-              <input
-                type="date"
-                value={planDate}
-                onChange={(e) => onPlanDateChange(e.target.value)}
-                className="rounded border border-slate-200 px-2 py-1.5 text-slate-800 text-sm"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => loadPlan({ force: true })}
-              disabled={planLoading || !planDate.trim()}
-              className="rounded bg-unb-red text-white text-sm font-medium px-3 py-1.5 hover:opacity-90 disabled:opacity-50"
-            >
-              {planLoading ? "Loading…" : "Refresh"}
-            </button>
-          </div>
-        ) : null}
+        <div
+          className="inline-flex h-9 box-border items-stretch overflow-hidden rounded-md border-2 border-slate-200 bg-white shadow-sm"
+          role="tablist"
+          aria-label="Recommendation type"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={planPanelMode === "schedule"}
+            onClick={() => setPlanPanelMode("schedule")}
+            className={`px-3 text-xs font-semibold transition-colors ${
+              planPanelMode === "schedule"
+                ? "bg-unb-red text-white"
+                : "text-slate-900 hover:bg-unb-red/5"
+            }`}
+          >
+            By schedule
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={planPanelMode === "building"}
+            onClick={() => setPlanPanelMode("building")}
+            className={`border-l-2 border-slate-200 px-3 text-xs font-semibold transition-colors ${
+              planPanelMode === "building"
+                ? "bg-unb-red text-white"
+                : "text-slate-900 hover:bg-unb-red/5"
+            }`}
+          >
+            By building
+          </button>
+        </div>
       </div>
 
-      {!token ? (
-        <p className="text-sm text-slate-600">
-          <Link to="/auth" className="text-unb-red font-medium underline underline-offset-2">
-            Sign in
-          </Link>{" "}
-          with a linked student profile and schedule to see personalized recommendations.
-        </p>
-      ) : !planDate.trim() ? (
-        <p className="text-sm text-slate-600 border border-dashed border-slate-200 rounded-lg px-4 py-6 text-center bg-slate-50/80">
-          Select a date above to load your parking plan for that day.
-        </p>
-      ) : planLoading ? (
-        <p className="text-sm text-slate-500">Building your plan…</p>
-      ) : planError ? (
-        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          {planError}
-        </p>
-      ) : plan && plan.noClassesOnDay ? (
-        <div className="border border-slate-200 rounded-lg px-4 py-5 bg-slate-50/80 space-y-1">
-          <p className="text-sm font-medium text-slate-700">No classes scheduled on this day</p>
-          <p className="text-xs text-slate-500">{plan.scheduleNote}</p>
-        </div>
-      ) : plan && plan.segments.length > 0 ? (
-        <div className="space-y-3">
-          <p className="text-xs text-slate-500">{plan.scheduleNote}</p>
-          <ol className="space-y-3 list-none p-0 m-0">{plan.segments.map(renderSegment)}</ol>
-          <p className="text-xs text-slate-400">
-            Model: walk {plan.assumptions.walkMetersPerMinute} m/min,{" "}
-            {plan.assumptions.minutesPerFloor} min/floor in-building; {plan.assumptions.congestionModel}.
-          </p>
-        </div>
+      {planPanelMode === "schedule" ? (
+        <>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-slate-800">Your day parking plan</h3>
+              {token ? (
+                <p className="text-sm text-slate-500 mt-1 max-w-2xl">
+                  Pick a date to load your plan. Only <strong>initial arrival</strong> and{" "}
+                  <strong>return &amp; park</strong> steps are clickable (they open the lot heat map with the suggested
+                  stall highlighted). <strong>Between classes</strong> / stay-on-campus blocks are informational only.
+                  Long gaps (&gt; 60 min, or the threshold shown below once loaded) assume you left campus and need to park
+                  again.
+                </p>
+              ) : null}
+            </div>
+            {token ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-sm text-slate-600 flex items-center gap-2">
+                  Date
+                  <input
+                    type="date"
+                    value={planDate}
+                    onChange={(e) => onPlanDateChange(e.target.value)}
+                    className="rounded border border-slate-200 px-2 py-1.5 text-slate-800 text-sm"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => loadPlan({ force: true })}
+                  disabled={planLoading || !planDate.trim()}
+                  className="rounded bg-unb-red text-white text-sm font-medium px-3 py-1.5 hover:opacity-90 disabled:opacity-50"
+                >
+                  {planLoading ? "Loading…" : "Refresh"}
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          {!token ? (
+            <p className="text-sm text-slate-600">
+              <Link to="/auth" className="text-unb-red font-medium underline underline-offset-2">
+                Sign in
+              </Link>{" "}
+              with a linked student profile and schedule to see personalized recommendations.
+            </p>
+          ) : !planDate.trim() ? (
+            <p className="text-sm text-slate-600 border border-dashed border-slate-200 rounded-lg px-4 py-6 text-center bg-slate-50/80">
+              Select a date above to load your parking plan for that day.
+            </p>
+          ) : planLoading ? (
+            <div className="space-y-3" aria-busy="true">
+              <span className="sr-only">Building your parking plan</span>
+              <div className="skeleton h-3 w-48 max-w-full rounded" />
+              <ol className="space-y-3 list-none p-0 m-0">
+                {[0, 1].map((i) => (
+                  <li
+                    key={i}
+                    className="rounded-lg border border-slate-200 bg-slate-50/80 p-4 space-y-2"
+                  >
+                    <div className="skeleton h-3 w-40 max-w-[85%] rounded" />
+                    <div className="skeleton h-4 w-full max-w-md rounded" />
+                    <div className="skeleton h-3 w-full rounded" />
+                    <div className="skeleton h-3 w-[min(28rem,100%)] rounded" />
+                  </li>
+                ))}
+              </ol>
+              <div className="skeleton h-3 w-64 max-w-full rounded" />
+            </div>
+          ) : planError ? (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              {planError}
+            </p>
+          ) : plan && plan.segments.length > 0 ? (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-500">{plan.scheduleNote}</p>
+              <ol className="space-y-3 list-none p-0 m-0">{plan.segments.map(renderSegment)}</ol>
+              <p className="text-xs text-slate-400">
+                Model: walk {plan.assumptions.walkMetersPerMinute} m/min,{" "}
+                {plan.assumptions.minutesPerFloor} min/floor in-building; {plan.assumptions.congestionModel}.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">No plan returned for this date.</p>
+          )}
+        </>
       ) : (
-        <p className="text-sm text-slate-500">No plan returned for this date.</p>
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-base font-semibold text-slate-800">Closest open stall by building</h3>
+            <p className="text-sm text-slate-500 mt-1 max-w-2xl">
+              Picks the nearest lot that still has an empty stall and that your role may use (for example, staff-only
+              lots are skipped unless you are staff). Uses{" "}
+              <strong>{mapDataMode === "live" ? "live" : "scenario"}</strong> occupancy—the same snapshot as the campus
+              map—and re-checks whenever spot data updates (about every 30 seconds while this page is open and the tab is
+              visible). With <strong>Pick time</strong> on the map, the chosen date and time are treated as when you want
+              to be <strong>at this building</strong> (selected floor); we suggest when to <strong>be parked</strong> at
+              the stall using the same walk / in-building / congestion model as the class plan.
+            </p>
+            {!token ? (
+              <p className="text-xs text-slate-500 mt-2">
+                You are not signed in; restricted lots are evaluated as for a non-resident student driver.
+              </p>
+            ) : null}
+          </div>
+
+          {buildingsError ? (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              {buildingsError}
+            </p>
+          ) : null}
+
+          {buildingsLoading ? (
+            <div className="flex flex-wrap gap-4 items-end" aria-busy="true">
+              <span className="sr-only">Loading building list</span>
+              <div className="flex flex-col gap-1 min-w-[12rem] flex-1 max-w-xs">
+                <div className="skeleton h-3.5 w-16 rounded" />
+                <div className="skeleton h-9 w-full rounded-md border border-slate-200" />
+              </div>
+              <div className="flex flex-col gap-1 min-w-[8rem] max-w-[10rem]">
+                <div className="skeleton h-3.5 w-10 rounded" />
+                <div className="skeleton h-9 w-full rounded-md border border-slate-200" />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-4 items-end">
+              <label className="text-sm text-slate-600 flex flex-col gap-1 min-w-[12rem]">
+                Building
+                <select
+                  value={selectedBuildingId}
+                  onChange={(e) => setSelectedBuildingId(e.target.value)}
+                  className="rounded border border-slate-200 px-2 py-1.5 text-slate-800 text-sm bg-white"
+                >
+                  <option value="">Select a building</option>
+                  {buildings.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                      {b.code ? ` (${b.code})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm text-slate-600 flex flex-col gap-1 min-w-[8rem]">
+                Floor
+                <select
+                  value={selectedFloor}
+                  onChange={(e) => setSelectedFloor(parseInt(e.target.value, 10))}
+                  disabled={!selectedBuildingId}
+                  className="rounded border border-slate-200 px-2 py-1.5 text-slate-800 text-sm bg-white disabled:opacity-50"
+                >
+                  {Array.from({ length: maxFloor }, (_, i) => i + 1).map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
+          {!selectedBuildingId ? (
+            <p className="text-sm text-slate-600 border border-dashed border-slate-200 rounded-lg px-4 py-6 text-center bg-slate-50/80">
+              Choose a building (and floor for travel estimates) to see a suggested lot and stall.
+            </p>
+          ) : buildingRec && selectedBuilding ? (
+            <div className="space-y-2">
+              {buildingRecLoading ? (
+                <p className="text-xs text-slate-500">Refreshing with latest occupancy…</p>
+              ) : null}
+              {buildingRecError ? (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                  Latest refresh failed ({buildingRecError}); showing the previous suggestion.
+                </p>
+              ) : null}
+              <Link
+                to={lotHeatMapHref(buildingRec.lot.id, buildingRec.spot.id)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  openBuildingLotMap(lotHeatMapHref(buildingRec.lot.id, buildingRec.spot.id));
+                }}
+                className="block rounded-lg border border-slate-200 bg-slate-50/80 p-4 space-y-2 transition-colors hover:border-unb-red/50 hover:bg-white focus-visible:outline focus-visible:ring-2 focus-visible:ring-unb-red focus-visible:ring-offset-2"
+                aria-label={`Open ${buildingRec.lot.name} map and highlight spot ${spotLabel(buildingRec.spot)}`}
+              >
+                <p className="w-fit rounded-full border border-unb-red/25 bg-unb-red/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide leading-tight text-unb-red">
+                  Suggested parking
+                </p>
+                <p className="text-sm text-slate-800">
+                  Destination: <strong>{selectedBuilding.name}</strong>, floor <strong>{selectedFloor}</strong>
+                </p>
+                {mapDataMode === "pick-time" && mapScenarioDeadlineLocal && buildingParkedByForScenario ? (
+                  <>
+                    <p className="text-sm font-medium text-unb-red">
+                      <span className="font-semibold">Be parked by </span>
+                      {!sameLocalCalendarDay(buildingParkedByForScenario, mapScenarioDeadlineLocal) ? (
+                        <strong>
+                          {buildingParkedByForScenario.toLocaleDateString(undefined, {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}{" "}
+                        </strong>
+                      ) : null}
+                      <span className="font-semibold tabular-nums">
+                        {formatLocalTime(buildingParkedByForScenario.toISOString())}
+                      </span>
+                      <span>
+                        {" "}
+                        local time to reach <strong>{selectedBuilding.name}</strong> (floor {selectedFloor}) by{" "}
+                        <strong className="tabular-nums">
+                          {formatLocalTime(mapScenarioDeadlineLocal.toISOString())}
+                        </strong>{" "}
+                        on{" "}
+                        <strong>
+                          {mapScenarioDeadlineLocal.toLocaleDateString(undefined, {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </strong>
+                        .
+                      </span>
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      Allow ~<strong>{buildingTravelTotalMinutes}</strong> min (walk ~{buildingWalkMinutes}, in-building
+                      ~{buildingInBuildingMinutes}, lot congestion ~{buildingCongestionMinutes}).
+                    </p>
+                  </>
+                ) : mapDataMode === "pick-time" && !mapScenarioDeadlineLocal ? (
+                  <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    Set a full <strong>date</strong> and <strong>time</strong> on the campus map (<strong>Pick time</strong>
+                    ) to see when to be parked for that arrival at the building.
+                  </p>
+                ) : null}
+                <p className="text-sm">
+                  <span className="font-medium text-unb-red">
+                    Park in <strong>{buildingRec.lot.name}</strong>, stall{" "}
+                    <strong>{spotLabel(buildingRec.spot)}</strong>
+                  </span>
+                  <span className="text-slate-600">
+                    {" "}
+                    (~{Math.round(buildingRec.distanceMeters)} m walk to the building).
+                  </span>
+                </p>
+                <p className="text-sm text-slate-600">
+                  About <strong>{buildingRec.freeSpotsInSelectedLot}</strong> free stalls in this lot right now; lot
+                  roughly <strong>{buildingRec.occupancyPercent}%</strong> full.
+                </p>
+                <p className="text-xs text-slate-500">
+                  Rough travel inside the model used for class plans: ~{buildingWalkMinutes} min walk, ~{" "}
+                  {buildingInBuildingMinutes} min in-building (floor × {REC_MINUTES_PER_FLOOR} min), ~{" "}
+                  {buildingCongestionMinutes} min congestion buffer at current lot fullness.
+                </p>
+              </Link>
+            </div>
+          ) : buildingRecLoading ? (
+            <div
+              className="rounded-lg border border-slate-200 bg-slate-50/80 p-4 space-y-2"
+              aria-busy="true"
+            >
+              <span className="sr-only">Finding a suggested stall for this building</span>
+              <div className="skeleton h-3 w-40 max-w-full rounded" />
+              <div className="skeleton h-4 w-[min(24rem,100%)] rounded" />
+              <div className="skeleton h-3 w-full rounded" />
+              <div className="skeleton h-3 w-[min(20rem,90%)] rounded" />
+              <div className="skeleton h-3 w-full max-w-xl rounded" />
+            </div>
+          ) : buildingRecError ? (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              {buildingRecError}
+            </p>
+          ) : null}
+        </div>
       )}
     </section>
   );
@@ -543,6 +975,10 @@ export function HomeIndexContent() {
     lotSort,
     setLotSort,
     navigate,
+    mapDataMode,
+    mapScenarioDate,
+    mapScenarioTimeHHmm,
+    parkingOccupancySignature,
     applyPlanScenarioIfChanged,
     setDayPlanMapLoading,
     scrollCampusMapIntoView,
@@ -562,6 +998,16 @@ export function HomeIndexContent() {
         setDayPlanMapLoading={setDayPlanMapLoading}
         scrollCampusMapIntoView={scrollCampusMapIntoView}
         navigate={navigate}
+        mapDataMode={mapDataMode}
+        mapScenarioDate={mapScenarioDate}
+        mapScenarioTimeHHmm={mapScenarioTimeHHmm}
+        parkingOccupancySignature={parkingOccupancySignature}
+      />
+
+      <ParkingForecastSection
+        mapDataMode={mapDataMode}
+        mapScenarioDate={mapScenarioDate}
+        mapScenarioTimeHHmm={mapScenarioTimeHHmm}
       />
 
       <QuickRecommendCard token={token} />

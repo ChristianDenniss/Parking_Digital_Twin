@@ -26,7 +26,7 @@ export class ClassSchedule {
   @Column({ type: "text", nullable: true })
   section!: string | null;
 
-  @CreateDateColumn({ type: "datetime" })
+  @CreateDateColumn()
   createdAt!: Date;
 
   @ManyToOne(() => Student, (student) => student.classSchedules, { onDelete: "CASCADE" })

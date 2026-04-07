@@ -7,25 +7,23 @@ import { ParkingSpot } from "../src/modules/parkingSpots/parkingSpot.entity";
 import { Building } from "../src/modules/buildings/building.entity";
 import { LotBuildingDistance } from "../src/modules/buildings/lotBuildingDistance.entity";
 import * as parkingOccupancyAssign from "../src/modules/parkingSpots/parkingOccupancyAssign.service";
+import type { LotBuildingWalkingEdge } from "./lib/walkingRouteKml";
 
 /** Path to lot SVGs (DTProj/FE/src/images/svgs).
- * Seed reads data-spot-label from each file as source of truth.
+ * Seed reads stall `id="Row-###"` from each file (see parseSpotLayersFromSvg).
  *
  * seed.ts lives in `BE/scripts`, so `../../FE/...` resolves back to `DTProj/FE/...`.
  */
 const LOT_SVGS_DIR = path.join(__dirname, "../../FE/src/images/svgs");
 
-/** Spot layer = has data-spot-label and label does not contain "BG". Returns labels in document order (1:1 with SVG layers). */
+/** Stall ids in document order: `id="Row-###"` on each stall rect/path (same pattern as GeneralParking1/2 SVGs). */
 function parseSpotLayersFromSvg(svgContent: string): string[] {
-  // Primary format: data-spot-label="A-001"
-  // Fallback format (some uploaded SVGs): id="A-001"
-  const re = /(?:data-spot-label|id)="([^"]+)"/g;
+  const re = /\bid="([A-Za-z]+-\d+)"/g;
   const labels: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(svgContent)) !== null) {
     const label = m[1].trim();
     if (!label || /BG/i.test(label)) continue;
-    if (!/^[A-Za-z]+-\d+$/i.test(label)) continue;
     labels.push(label);
   }
   return labels;
@@ -62,11 +60,58 @@ function randomLotImageUrl(): string {
 
 const REPLACE = process.argv.includes("--replace");
 
+/** `name` = GEE / walking-edges key; `code` = short API label; `floors` = number or null. */
+interface BuildingSeedConfigRow {
+  name: string;
+  code: string;
+  floors: number | null;
+}
+
+const BUILDING_SEED_CONFIG_PATH = path.join(__dirname, "../data/building-seed-config.json");
+
+function loadBuildingSeedConfigs(): BuildingSeedConfigRow[] {
+  if (!fs.existsSync(BUILDING_SEED_CONFIG_PATH)) {
+    throw new Error(`Missing building seed data: ${BUILDING_SEED_CONFIG_PATH}`);
+  }
+  const raw: unknown = JSON.parse(fs.readFileSync(BUILDING_SEED_CONFIG_PATH, "utf-8"));
+  if (!Array.isArray(raw)) {
+    throw new Error(`${BUILDING_SEED_CONFIG_PATH} must be a JSON array`);
+  }
+  const out: BuildingSeedConfigRow[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const row = raw[i] as Record<string, unknown>;
+    if (typeof row?.name !== "string" || typeof row?.code !== "string") {
+      throw new Error(`${BUILDING_SEED_CONFIG_PATH}: row ${i} needs string "name" and "code"`);
+    }
+    const floors = row.floors;
+    if (floors != null && typeof floors !== "number") {
+      throw new Error(`${BUILDING_SEED_CONFIG_PATH}: row ${i} ("${row.name}") "floors" must be a number or null`);
+    }
+    out.push({ name: row.name, code: row.code, floors: floors === undefined ? null : (floors as number | null) });
+  }
+  return out;
+}
+
+/** Optional: `BE/data/lot-building-walking-edges.json` from `kml-to-edges.ts` (meters along Google route polyline). */
+const WALKING_EDGES_PATH = path.join(__dirname, "../data/lot-building-walking-edges.json");
+
+function loadWalkingEdgesMap(): Map<string, number> | null {
+  if (!fs.existsSync(WALKING_EDGES_PATH)) return null;
+  try {
+    const raw = JSON.parse(fs.readFileSync(WALKING_EDGES_PATH, "utf-8")) as LotBuildingWalkingEdge[];
+    if (!Array.isArray(raw)) return null;
+    return new Map(raw.map((e) => [`${e.parkingLotName}|${e.buildingCode}`, e.distanceMeters]));
+  } catch {
+    return null;
+  }
+}
+
 const SEED_SCENARIO_DATE = process.env.SEED_SCENARIO_DATE ?? "2026-03-15";
 const SEED_SCENARIO_TIME = process.env.SEED_SCENARIO_TIME ?? "11:00";
 
 async function seed() {
   await AppDataSource.initialize();
+  const buildingSeedConfigs = loadBuildingSeedConfigs();
   const lotRepo = AppDataSource.getRepository(ParkingLot);
   const spotRepo = AppDataSource.getRepository(ParkingSpot);
 
@@ -74,13 +119,21 @@ async function seed() {
   const lotCount = await lotRepo.count();
   if (REPLACE || spotCount > 0 || lotCount > 0) {
     if (REPLACE) {
-      console.log("Replace mode: clearing parking lots and spots only (courses, students, users, buildings are left intact).");
+      console.log(
+        "Replace mode: clearing parking lots, spots, lot–building distances, and buildings; courses/students/users stay."
+      );
     } else {
       console.log(`Clearing existing data (${spotCount} spots) to re-seed to match current lotsConfig capacities...`);
     }
-    // Only parking data; do not delete courses, class_schedule, students, users, or buildings.
     await spotRepo.createQueryBuilder().delete().execute();
     await lotRepo.createQueryBuilder().delete().execute();
+    if (REPLACE) {
+      const distanceRepo = AppDataSource.getRepository(LotBuildingDistance);
+      const buildingRepo = AppDataSource.getRepository(Building);
+      await distanceRepo.createQueryBuilder().delete().execute();
+      await buildingRepo.createQueryBuilder().delete().execute();
+      console.log("Cleared buildings and lot–building distances; will re-seed from building-seed-config.json.");
+    }
   }
 
   // 16 lots (names match GEE features).
@@ -88,13 +141,13 @@ async function seed() {
   // - if an SVG exists in FE/src/images/svgs/{LotName}.svg, the real capacity and spots come from the SVG (one spot per data-spot-label).
   // - if no SVG exists, capacity is used to generate fallback A-J rows.
   const lotsConfig: readonly { name: string; capacity: number }[] = [
-    { name: "StaffParking1", capacity: 148 },
-    { name: "GeneralParking1", capacity: 119 },
-    { name: "GeneralParking2", capacity: 200 },
-    { name: "GeneralParking3", capacity: 200 },
+    { name: "StaffParking1", capacity: 170 },
+    { name: "GeneralParking1", capacity: 118 },
+    { name: "GeneralParking2", capacity: 199 },
+    { name: "GeneralParking3", capacity: 313 },
     { name: "TimedParking1", capacity: 17 },
-    { name: "GeneralParking4", capacity: 342 },
-    { name: "TimedParking2", capacity: 27 },
+    { name: "GeneralParking4", capacity: 335 },
+    { name: "TimedParking2", capacity: 25 },
     { name: "StaffParking2", capacity: 6 },
     { name: "ResidentParking1", capacity: 20 },
     { name: "ResidentParking2", capacity: 23 },
@@ -103,7 +156,7 @@ async function seed() {
     { name: "PHDParking1", capacity: 17 },
     { name: "GeneralParking5", capacity: 24 },
     { name: "StaffParking4", capacity: 10 },
-    { name: "ResidentParking3", capacity: 22 },
+    { name: "ResidentParking3", capacity: 21 },
   ];
 
   const lots: ParkingLot[] = [];
@@ -228,22 +281,8 @@ async function seed() {
   const distanceRepo = AppDataSource.getRepository(LotBuildingDistance);
   let buildings: Building[] = [];
   if ((await buildingRepo.count()) === 0) {
-    const buildingConfigs = [
-      { name: "Ganong Hall", code: "Ganong Hall" },
-      { name: "K.C. Irving Hall", code: "K.C. Irving Hall" },
-      { name: "Hans W. Klohn Commons (library)", code: "Hans W. Klohn Commons (library)" },
-      { name: "Thomas J. Condon Student Centre", code: "Thomas J. Condon Student Centre" },
-      { name: "G. Forbes Elliot Athletics Centre", code: "G. Forbes Elliot Athletics Centre" },
-      { name: "Sir Douglas Hazen Hall", code: "Sir Douglas Hazen Hall" },
-      { name: "Philip W. Oland Hall", code: "Philip W. Oland Hall" },
-      { name: "Sir James Dunn Residence", code: "Sir James Dunn Residence" },
-      { name: "Colin B. Mackay Residence", code: "Colin B. Mackay Residence" },
-      { name: "Barry & Flora Beckett Residence", code: "Barry & Flora Beckett Residence" },
-      { name: "Canada Games Stadium", code: "Canada Games Stadium" },
-      { name: "Dalhousie Medicine New Brunswick building", code: "Dalhousie Medicine New Brunswick building" },
-    ];
-    for (const cfg of buildingConfigs) {
-      const b = buildingRepo.create({ name: cfg.name, code: cfg.code });
+    for (const cfg of buildingSeedConfigs) {
+      const b = buildingRepo.create({ name: cfg.name, code: cfg.code, floors: cfg.floors });
       await buildingRepo.save(b);
       buildings.push(b);
     }
@@ -252,9 +291,18 @@ async function seed() {
     buildings = await buildingRepo.find({ order: { name: "ASC" } });
   }
   if ((await distanceRepo.count()) === 0 && buildings.length > 0) {
+    const walkingEdges = loadWalkingEdgesMap();
+    if (walkingEdges) {
+      console.log(`Using walking distances from ${path.basename(WALKING_EDGES_PATH)} (${walkingEdges.size} edges); others random.`);
+    }
     for (const lot of lots) {
       for (const building of buildings) {
-        const distanceMeters = 50 + Math.floor(Math.random() * 450);
+        const key = `${lot.name}|${building.name}`;
+        const fromKml = walkingEdges?.get(key);
+        const distanceMeters =
+          fromKml != null && Number.isFinite(fromKml)
+            ? Math.round(fromKml)
+            : 50 + Math.floor(Math.random() * 450);
         const d = distanceRepo.create({
           parkingLotId: lot.id,
           buildingId: building.id,
