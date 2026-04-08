@@ -169,26 +169,31 @@ async function fetchHistoricalSamples(
   period: string,
 ): Promise<HistoricalSample[]> {
   const repo = AppDataSource.getRepository(HistoricalProxyData);
+  const isPostgres = AppDataSource.options.type === "postgres";
+  const hourWhere = isPostgres
+    ? `EXTRACT(HOUR FROM h."recordedAt")::int = :hour`
+    : "CAST(strftime('%H', h.recordedAt) AS INTEGER) = :hour";
+  const dayWhere = isPostgres
+    ? `EXTRACT(DOW FROM h."recordedAt")::int IN (:...days)`
+    : "CAST(strftime('%w', h.recordedAt) AS INTEGER) IN (:...days)";
+  const periodWhere = isPostgres
+    ? `(h."metadata")::jsonb ->> 'period' = :period`
+    : "json_extract(h.metadata, '$.period') = :period";
+
   // Match records within ±1 day-of-week and same semester period
   const rows = await repo
     .createQueryBuilder("h")
     .select(["h.occupancyPct"])
     .where("h.sourceName = :lotId", { lotId })
-    .andWhere(
-      "CAST(strftime('%H', h.recordedAt) AS INTEGER) = :hour",
-      { hour },
-    )
-    .andWhere(
-      "CAST(strftime('%w', h.recordedAt) AS INTEGER) IN (:...days)",
-      {
-        days: [
-          (dayOfWeek + 6) % 7,
-          dayOfWeek,
-          (dayOfWeek + 1) % 7,
-        ],
-      },
-    )
-    .andWhere("json_extract(h.metadata, '$.period') = :period", { period })
+    .andWhere(hourWhere, { hour })
+    .andWhere(dayWhere, {
+      days: [
+        (dayOfWeek + 6) % 7,
+        dayOfWeek,
+        (dayOfWeek + 1) % 7,
+      ],
+    })
+    .andWhere(periodWhere, { period })
     .getMany();
   return rows.map((r) => ({ occupancyPct: r.occupancyPct }));
 }
