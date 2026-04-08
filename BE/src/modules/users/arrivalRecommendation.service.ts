@@ -204,38 +204,16 @@ function resolveEndsAt(dayStart: Date, course: Course, startsAt: Date): Date {
 }
 
 /**
- * Maps the last letter of a Banner section code to the JS day-of-week numbers (0=Sun…6=Sat)
- * on which that section typically meets at UNBSJ.
- * Returns null when the pattern is unknown (treat as "meets every weekday" to be safe).
+ * Returns whether we model the student as having class on `selectedDayJsDay` (0=Sun…6=Sat).
+ * Every course is treated as meeting every weekday (Mon–Fri); weekends are never included.
  */
-export function getMeetingDaysFromSectionCode(sectionCode: string | null | undefined): number[] | null {
-  if (!sectionCode) return null;
-  const letter = sectionCode.trim().slice(-1).toUpperCase();
-  switch (letter) {
-    case "A": return [1, 3];       // Mon, Wed
-    case "B": return [2, 4];       // Tue, Thu
-    case "C": return [1, 3, 5];    // Mon, Wed, Fri
-    case "D": return [1];          // Mon only
-    case "F": return [5];          // Fri only
-    default:  return null;         // unknown — caller decides
-  }
-}
-
-/**
- * Returns whether a course meets on `selectedDayJsDay` (0=Sun…6=Sat).
- * Unknown section codes are included on weekdays (1–5) and excluded on weekends.
- */
-export function courseMeetsOnDay(course: Course, selectedDayJsDay: number): boolean {
-  const days = getMeetingDaysFromSectionCode(course.sectionCode);
-  if (days !== null) return days.includes(selectedDayJsDay);
-  // Unknown pattern: include Mon–Fri, exclude Sat/Sun
+export function courseMeetsOnDay(_course: Course, selectedDayJsDay: number): boolean {
   return selectedDayJsDay >= 1 && selectedDayJsDay <= 5;
 }
 
 /**
- * Finds all courses meeting on `selectedDay`, filtered by term and day-of-week derived from
- * the section code suffix (A=Mon/Wed, B=Tue/Thu, C=Mon/Wed/Fri; unknown codes are excluded
- * on weekends and included on weekdays).
+ * Finds all courses for `selectedDay`: term filter, building, plausible times, and weekdays only
+ * (each course is assumed to run Mon–Fri; Sat/Sun yield no segments).
  */
 function findAllClassesOnSelectedDay(
   schedules: ClassSchedule[],
@@ -298,6 +276,23 @@ function lotPredictedOccupancyPercent(
   return Math.round((occ / inLot.length) * 100);
 }
 
+/** Congestion buffer from model occupancy, plus a few minutes when forecast free stalls are very few (hunting time). */
+function lotCongestionBufferMinutesForLot(
+  occupancyPercent: number,
+  stateMode: "current" | "predicted",
+  predictedLotData: PredictedLotData | undefined,
+  lotId: string,
+): number {
+  const base = Math.min(15, Math.round(occupancyPercent * CONGESTION_OCCUPANCY_SCALE));
+  const forecastFree =
+    stateMode === "predicted" && predictedLotData?.[lotId] !== undefined
+      ? predictedLotData[lotId]!.freeSpots
+      : null;
+  const tightExtra =
+    forecastFree != null && forecastFree > 0 && forecastFree < 5 ? 3 : 0;
+  return Math.min(15, base + tightExtra);
+}
+
 /**
  * Pre-fetch occupancy predictions for all lots near a building at the given moment.
  * Returns a map of lotId → { freeSpots, occupancyPct } used in predicted mode.
@@ -355,9 +350,12 @@ async function buildParkingBlockForCourse(
   let parking: Awaited<ReturnType<typeof parkingLotService.recommendBestParking>> = null;
   let spotIdToStatus: Map<string, "occupied" | "empty"> = new Map();
   let spotRows: { id: string; parkingLotId: string }[] = [];
+  /** Same Moncton clock passed to `previewScenarioAssignmentAt` for the latest recommendation. */
+  let parkingScenarioClock: OccupancyScenarioClock | null = null;
 
   for (let iter = 0; iter < 4; iter++) {
     const { dateYmd, timeHHmm } = occupancyScenarioFromArriveBy(arriveGuess);
+    parkingScenarioClock = { dateYmd, timeHHmm };
     const preview = await parkingOccupancyAssign.previewScenarioAssignmentAt(dateYmd, timeHHmm);
     spotIdToStatus = preview.spotIdToStatus;
     spotRows = preview.spotRows;
@@ -381,9 +379,11 @@ async function buildParkingBlockForCourse(
         ? Math.round(predictedLotData[parking.lot.id]!.occupancyPct)
         : lotPredictedOccupancyPercent(parking.lot.id, spotIdToStatus, spotRows);
 
-    const lotCongestionBufferMinutes = Math.min(
-      15,
-      Math.round(occupancyPercent * CONGESTION_OCCUPANCY_SCALE),
+    const lotCongestionBufferMinutes = lotCongestionBufferMinutesForLot(
+      occupancyPercent,
+      stateMode,
+      predictedLotData,
+      parking.lot.id,
     );
 
     const totalTravelMinutes =
@@ -414,7 +414,9 @@ async function buildParkingBlockForCourse(
           totalTravelMinutes,
           recommendedArriveBy: recommendedArriveBy.toISOString(),
         },
-        occupancyScenario: occupancyScenarioFromArriveBy(recommendedArriveBy),
+        // Match the preview snapshot used to pick `parking.spot` (arriveGuess can differ from
+        // recommendedArriveBy by up to ~90s; using the latter skewed the campus map vs. stall).
+        occupancyScenario: { dateYmd, timeHHmm },
       };
     }
     arriveGuess = recommendedArriveBy;
@@ -429,7 +431,12 @@ async function buildParkingBlockForCourse(
     stateMode === "predicted" && predictedLotData?.[parking.lot.id] !== undefined
       ? Math.round(predictedLotData[parking.lot.id]!.occupancyPct)
       : lotPredictedOccupancyPercent(parking.lot.id, spotIdToStatus, spotRows);
-  const lotCongestionBufferMinutes = Math.min(15, Math.round(occupancyPercent * CONGESTION_OCCUPANCY_SCALE));
+  const lotCongestionBufferMinutes = lotCongestionBufferMinutesForLot(
+    occupancyPercent,
+    stateMode,
+    predictedLotData,
+    parking.lot.id,
+  );
   const totalTravelMinutes =
     walkMinutesFromLotToBuilding + inBuildingNavigationMinutes + lotCongestionBufferMinutes + prepBuffer;
   const recommendedArriveBy = new Date(startsAt.getTime() - totalTravelMinutes * 60 * 1000);
@@ -454,7 +461,8 @@ async function buildParkingBlockForCourse(
       totalTravelMinutes,
       recommendedArriveBy: recommendedArriveBy.toISOString(),
     },
-    occupancyScenario: occupancyScenarioFromArriveBy(recommendedArriveBy),
+    occupancyScenario:
+      parkingScenarioClock ?? occupancyScenarioFromArriveBy(recommendedArriveBy),
   };
 }
 
@@ -497,14 +505,17 @@ export async function getArrivalRecommendationForUser(
     return {
       selectedDate: formatLocalYyyyMmDd(selectedDayStart),
       includedTermCodes,
-      scheduleNote: `No courses with a building are scheduled on ${dow}s for the active term(s): ${includedTermCodes.join(", ")}.`,
+      scheduleNote:
+        `No classes matched ${dow} for term(s) ${includedTermCodes.join(", ")}. ` +
+        `Weekends always have no classes. On weekdays, each course is assumed to meet that day (Mon–Fri). ` +
+        `Rows still need a building and plausible start/end times.`,
       noClassesOnDay: true,
       gapMinutesAssumeLeftCampus: gapThreshold,
       segments: [],
       assumptions: {
         walkMetersPerMinute: walkMpm,
         minutesPerFloor: minPerFloor,
-        congestionModel: `min(15, round(occupancyPercent * ${CONGESTION_OCCUPANCY_SCALE})) minutes`,
+        congestionModel: `lot buffer capped at 15 min: round(occupancyPercent * ${CONGESTION_OCCUPANCY_SCALE}), plus up to 3 when forecast shows 1–4 free stalls in chosen lot`,
       },
       predictionMode: stateMode,
       eventSize,
@@ -598,13 +609,13 @@ export async function getArrivalRecommendationForUser(
     scheduleNote:
       `Only classes in term code(s) ${includedTermCodes.join(", ")} are included (default ${DEFAULT_ARRIVAL_PLAN_TERM_CODE} = Winter 2026). ` +
       "Courses with placeholder meeting times (e.g. 00:00-00:00, 00:00-23:59, or blocks over 14 hours) are excluded. " +
-      "Day-of-week is inferred from the section code suffix (A=Mon/Wed, B=Tue/Thu, C=Mon/Wed/Fri). Unknown patterns are excluded on weekends. Classes are ordered by start time.",
+      "Each course is assumed to meet every weekday (Mon–Fri) for this plan; weekends are empty. Classes are ordered by start time.",
     gapMinutesAssumeLeftCampus: gapThreshold,
     segments,
     assumptions: {
       walkMetersPerMinute: walkMpm,
       minutesPerFloor: minPerFloor,
-      congestionModel: `min(15, round(occupancyPercent * ${CONGESTION_OCCUPANCY_SCALE})) minutes`,
+      congestionModel: `lot buffer capped at 15 min: round(occupancyPercent * ${CONGESTION_OCCUPANCY_SCALE}), plus up to 3 when forecast shows 1–4 free stalls in chosen lot`,
     },
     predictionMode: stateMode,
     eventSize,

@@ -129,13 +129,18 @@ export function CampusShell() {
   const [scenarioApplyError, setScenarioApplyError] = useState<string | null>(null);
   const [dayPlanMapLoading, setDayPlanMapLoading] = useState(false);
   const campusMapSectionRef = useRef<HTMLElement | null>(null);
-  const scrollCampusMapIntoView = useCallback(() => {
-    campusMapSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const scrollCampusMapIntoView = useCallback((behavior: ScrollBehavior = "smooth") => {
+    campusMapSectionRef.current?.scrollIntoView({ behavior, block: "start" });
   }, []);
 
   const applyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** When set to `scenarioKey(...)`, the debounced apply effect skips once (plan-driven apply already ran). */
   const programmaticScenarioSkipDebounceRef = useRef<string | null>(null);
+  /**
+   * Last successful apply-scenario used `deterministic: true` (day planner / forecast). Manual pick-time applies are
+   * stochastic by default; same date|time can still disagree with planner stall picks if we skip re-apply.
+   */
+  const lastScenarioApplyDeterministicRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -156,6 +161,7 @@ export function CampusShell() {
     setMapScenarioTimeHHmm("");
     setScenarioApplyError(null);
     setScenarioSyncedKey(null);
+    lastScenarioApplyDeterministicRef.current = false;
     setNowcastingLiveApply(wasPickTime);
     try {
       setScenarioApplying(true);
@@ -198,8 +204,10 @@ export function CampusShell() {
         setSimPaused(s.paused);
         setSimMapMode(s.mapMode);
         setScenarioSyncedKey(scenarioKey(date, time));
+        lastScenarioApplyDeterministicRef.current = Boolean(opts?.deterministic);
       } catch (e) {
         setScenarioSyncedKey(null);
+        lastScenarioApplyDeterministicRef.current = false;
         setScenarioApplyError(e instanceof Error ? e.message : "apply-scenario failed");
       } finally {
         setScenarioApplying(false);
@@ -254,11 +262,20 @@ export function CampusShell() {
     [performScenarioApply]
   );
 
-  /** Skip network if the campus map is already on this paused scenario (day-plan links / reload). */
+  /**
+   * Skip network only if the map already shows the same deterministic snapshot the planner used.
+   * Manual pick-time uses stochastic apply: same clock can look "synced" but still mismatch stall picks.
+   */
   const applyPlanScenarioIfChanged = useCallback(
     async (dateYmd: string, timeHHmm: string) => {
       const key = scenarioKey(dateYmd, timeHHmm);
-      if (mapDataMode === "pick-time" && scenarioSyncedKey === key) return;
+      if (
+        mapDataMode === "pick-time" &&
+        scenarioSyncedKey === key &&
+        lastScenarioApplyDeterministicRef.current
+      ) {
+        return;
+      }
       await applyPlanPausedScenario(dateYmd, timeHHmm);
     },
     [mapDataMode, scenarioSyncedKey, applyPlanPausedScenario]

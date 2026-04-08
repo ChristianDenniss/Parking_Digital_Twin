@@ -94,7 +94,7 @@ export function isGeneralLotName(name: string): boolean {
  */
 export async function buildingDemandForScenarioWindow(slotStartMinutes: number): Promise<Map<string, number>> {
   const allowed = new Set(getArrivalPlanTermCodes().map(normalizeArrivalTermCode));
-  const courses = await courseService.findAll();
+  const [courses, allBuildings] = await Promise.all([courseService.findAll(), buildingService.findAll()]);
   const w0 = slotStartMinutes;
   const w1 = slotStartMinutes + 15;
   const demand = new Map<string, number>();
@@ -106,7 +106,7 @@ export async function buildingDemandForScenarioWindow(slotStartMinutes: number):
   }
   const buildingIdByCourseString = new Map<string, string>();
   for (const s of buildingStrings) {
-    const match = await buildingService.findBuildingForCourseBuilding(s);
+    const match = buildingService.matchCourseBuildingString(s, allBuildings);
     if (match) buildingIdByCourseString.set(s, match.id);
   }
 
@@ -254,7 +254,8 @@ export type ScenarioAssignmentMode = "deterministic" | "stochastic";
 export async function computeLotWeightsAndK(
   spots: SpotAssignInput[],
   scenarioMoncton: DateTime,
-  kMode: "sample" | "deterministic" = "sample"
+  kMode: "sample" | "deterministic" = "sample",
+  buildingDemandPrecomputed?: Map<string, number>
 ): Promise<{ kTotal: number; lotWeights: Map<string, number> }> {
   const slots = getWinter2026Slots();
   const z = scenarioMoncton.setZone(UNBSJ_TIMEZONE);
@@ -270,7 +271,8 @@ export async function computeLotWeightsAndK(
       ? Math.min(totalSpots, Math.max(0, Math.round(r * totalSpots)))
       : sampleKTotalForSnapshot(r, totalSpots);
 
-  const demand = await buildingDemandForScenarioWindow(slotStartMin);
+  const demand =
+    buildingDemandPrecomputed ?? (await buildingDemandForScenarioWindow(slotStartMin));
   const allDist = await lotBuildingDistanceService.findAll({});
   const distByLot = new Map<string, { buildingId: string; distanceMeters: number }[]>();
   for (const row of allDist) {
@@ -306,7 +308,11 @@ export async function computeLotWeightsAndK(
  * Deterministic snapshot at Moncton date/time (same math as `applyScenarioOccupancy` with `mode: "deterministic"`).
  * Used for day-parking recommendations so suggested stalls match empty slots under the forecast.
  */
-export async function previewScenarioAssignmentAt(dateYmd: string, timeHm: string): Promise<{
+export async function previewScenarioAssignmentAt(
+  dateYmd: string,
+  timeHm: string,
+  opts?: { buildingDemand?: Map<string, number> }
+): Promise<{
   spotIdToStatus: Map<string, "occupied" | "empty">;
   predictedSpotStatusByLotId: Record<string, Record<string, "occupied" | "empty">>;
   kTotal: number;
@@ -324,7 +330,12 @@ export async function previewScenarioAssignmentAt(dateYmd: string, timeHm: strin
     slotIndex: s.slotIndex,
   }));
 
-  const { kTotal, lotWeights } = await computeLotWeightsAndK(spots, dt, "deterministic");
+  const { kTotal, lotWeights } = await computeLotWeightsAndK(
+    spots,
+    dt,
+    "deterministic",
+    opts?.buildingDemand
+  );
   const scenarioKey = `${dateYmd}|${timeHm}`;
   const statuses = assignStatusesForLots(spots, scenarioKey, kTotal, lotWeights, { deterministic: true });
 
@@ -401,7 +412,11 @@ export type ParkingForecastResponse = {
   insights: ParkingForecastInsights;
 };
 
-async function buildForecastInsights(dt: DateTime, totalSpots: number): Promise<ParkingForecastInsights> {
+async function buildForecastInsights(
+  dt: DateTime,
+  totalSpots: number,
+  buildingDemandPrecomputed?: Map<string, number>
+): Promise<ParkingForecastInsights> {
   const z = dt.setZone(UNBSJ_TIMEZONE);
   const inst = profileInstantForMoncton(z);
   const slots = getWinter2026Slots();
@@ -431,7 +446,8 @@ async function buildForecastInsights(dt: DateTime, totalSpots: number): Promise<
   }
 
   const slotStartMin = clockToMinutes(rawSlot.slotStart);
-  const demand = await buildingDemandForScenarioWindow(slotStartMin);
+  const demand =
+    buildingDemandPrecomputed ?? (await buildingDemandForScenarioWindow(slotStartMin));
   let liveDbClassOverlapEnrollmentSum = 0;
   let liveDbBuildingsWithClasses = 0;
   for (const v of demand.values()) {
@@ -492,10 +508,17 @@ function normalizeForecastTimeHm(timeQ: string): string {
  */
 export async function getParkingForecastSummary(dateYmd: string, timeHmRaw: string): Promise<ParkingForecastResponse> {
   const timeHm = normalizeForecastTimeHm(timeHmRaw);
-  const preview = await previewScenarioAssignmentAt(dateYmd, timeHm);
   const dt = parseScenarioMoncton(dateYmd, timeHm);
   if (!dt) throw new Error("Invalid scenario date or time");
-  const prof = campusOccupancyInstantForMoncton(dt.setZone(UNBSJ_TIMEZONE));
+  const z = dt.setZone(UNBSJ_TIMEZONE);
+  const slots = getWinter2026Slots();
+  const minutes = z.hour * 60 + z.minute;
+  const idx = Math.min(minutesToSlotIndex(minutes), slots.length - 1);
+  const slotStartMin = clockToMinutes(slots[idx]!.slotStart);
+
+  const buildingDemand = await buildingDemandForScenarioWindow(slotStartMin);
+  const preview = await previewScenarioAssignmentAt(dateYmd, timeHm, { buildingDemand });
+  const prof = campusOccupancyInstantForMoncton(z);
 
   const byLot = new Map<string, { total: number; occ: number }>();
   for (const row of preview.spotRows) {
@@ -530,7 +553,7 @@ export async function getParkingForecastSummary(dateYmd: string, timeHmRaw: stri
   const campusPct =
     preview.totalSpots > 0 ? Math.round((preview.kTotal / preview.totalSpots) * 100) : 0;
 
-  const insights = await buildForecastInsights(dt, preview.totalSpots);
+  const insights = await buildForecastInsights(dt, preview.totalSpots, buildingDemand);
 
   return {
     date: dateYmd,

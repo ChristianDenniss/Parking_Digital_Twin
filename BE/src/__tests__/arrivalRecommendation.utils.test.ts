@@ -17,7 +17,6 @@ import {
   parseLocalDateFromYyyyMmDd,
   formatLocalYyyyMmDd,
   inferFloorFromRoom,
-  getMeetingDaysFromSectionCode,
   courseMeetsOnDay,
 } from "../modules/users/arrivalRecommendation.service";
 import type { Course } from "../modules/classes/course.entity";
@@ -84,57 +83,26 @@ describe("inferFloorFromRoom", () => {
   });
 });
 
-// ─── getMeetingDaysFromSectionCode ────────────────────────────────────────────
-
-describe("getMeetingDaysFromSectionCode", () => {
-  it("maps letter B to [2, 4] (Tue/Thu)", () => {
-    expect(getMeetingDaysFromSectionCode("SJ01B")).toEqual([2, 4]);
-  });
-
-  it("maps letter A to [1, 3] (Mon/Wed)", () => {
-    expect(getMeetingDaysFromSectionCode("SJ01A")).toEqual([1, 3]);
-  });
-
-  it("maps letter C to [1, 3, 5] (Mon/Wed/Fri)", () => {
-    expect(getMeetingDaysFromSectionCode("SJ01C")).toEqual([1, 3, 5]);
-  });
-
-  it("maps letter F to [5] (Fri only)", () => {
-    expect(getMeetingDaysFromSectionCode("SJ01F")).toEqual([5]);
-  });
-
-  it("returns null for unknown or missing section code", () => {
-    expect(getMeetingDaysFromSectionCode(null)).toBeNull();
-    expect(getMeetingDaysFromSectionCode("SJ01Z")).toBeNull();
-    expect(getMeetingDaysFromSectionCode("")).toBeNull();
-  });
-});
-
 // ─── courseMeetsOnDay ─────────────────────────────────────────────────────────
 
 describe("courseMeetsOnDay", () => {
   const makeCourse = (sectionCode: string | null): Course =>
     ({ sectionCode } as Course);
 
-  it("returns true on Tue/Thu (2, 4) for a B-section course", () => {
-    const c = makeCourse("SJ01B");
-    expect(courseMeetsOnDay(c, 2)).toBe(true); // Tuesday
-    expect(courseMeetsOnDay(c, 4)).toBe(true); // Thursday
+  it("returns true Mon–Fri regardless of section code", () => {
+    const b = makeCourse("SJ01B");
+    const a = makeCourse("SJ01A");
+    const z = makeCourse("SJ01Z");
+    [1, 2, 3, 4, 5].forEach((d) => {
+      expect(courseMeetsOnDay(b, d)).toBe(true);
+      expect(courseMeetsOnDay(a, d)).toBe(true);
+      expect(courseMeetsOnDay(z, d)).toBe(true);
+    });
   });
 
-  it("returns false on Mon/Wed/Fri/Sat/Sun for a B-section course", () => {
+  it("returns false on weekends (0, 6)", () => {
     const c = makeCourse("SJ01B");
-    [1, 3, 5, 6, 0].forEach((d) => expect(courseMeetsOnDay(c, d)).toBe(false));
-  });
-
-  it("excludes weekends (0, 6) for unknown section codes", () => {
-    const c = makeCourse("SJ01Z"); // unknown
     expect(courseMeetsOnDay(c, 0)).toBe(false); // Sunday
     expect(courseMeetsOnDay(c, 6)).toBe(false); // Saturday
-  });
-
-  it("includes weekdays (1–5) for unknown section codes", () => {
-    const c = makeCourse("SJ01Z");
-    [1, 2, 3, 4, 5].forEach((d) => expect(courseMeetsOnDay(c, d)).toBe(true));
   });
 });
