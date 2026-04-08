@@ -6,6 +6,7 @@
 export type UserParkingEligibility = {
   role: "staff" | "student" | "phd_candidate";
   resident: boolean;
+  disabled: boolean;
 };
 
 export type LotAccessRestriction = "staff_only" | "resident_only" | "phd_only" | "none";
@@ -14,6 +15,7 @@ export type LotAccessRestriction = "staff_only" | "resident_only" | "phd_only" |
 export const DEFAULT_ANONYMOUS_PARKING_ELIGIBILITY: UserParkingEligibility = {
   role: "student",
   resident: false,
+  disabled: false,
 };
 
 /**

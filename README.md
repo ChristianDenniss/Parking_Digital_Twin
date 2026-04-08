@@ -1,129 +1,118 @@
 # UNB Saint John Parking Digital Twin
 
-Digital twin for campus parking at UNB Saint John. Right now we’re actively updating the MVP to work towards a real application, we have simulated per-spot data (fake sensors), historical proxy data for training, plus students and classes so we can tie parking usage to schedules and assumptions.
+Digital twin of all 16 UNBSJ parking lots. Models and predicts parking demand across campus, recommends the best lot and spot per building or class schedule, and supports what-if event scenario analysis.
+
+**BE** is in `BE/`, **FE** is in `FE/`. API spec is in `BE/openapi.yaml`. Design and SVG export notes are in `docs/figma.md`.
+
+Slides: **`docs/CS4555.pptx`** or [open in browser](https://powerpoint.cloud.microsoft/open/onedrive/?docId=3C4EFB58D9BD8FF5%21s461b1c1356bb48909f39bbbd3c85b2db&driveId=3C4EFB58D9BD8FF5).
 
 ---
 
-## Presentation (PowerPoint)
+## Deployment
 
-Slides for the project live in PowerPoint for the web: [open the presentation](https://powerpoint.cloud.microsoft/open/onedrive/?docId=3C4EFB58D9BD8FF5%21s461b1c1356bb48909f39bbbd3c85b2db&driveId=3C4EFB58D9BD8FF5).
+| Piece | Where | Notes |
+|---|---|---|
+| **Frontend** | Vercel | Set `VITE_API_URL` at build time to the Fly API base |
+| **Backend** | Fly.io | Set `APP_MODE=production`, `DATABASE_URL`/`DATABASE_CONNECTION_STRING`, `CORS_ALLOWED_ORIGINS` |
+| **Database** | Supabase (Postgres) | Used when backend is in production mode and a DB URL is set |
+| **Cache** | Redis (optional) | Set `REDIS_URL`; without it caching is disabled. Health: `GET /api/cache/health` |
 
-They downloaded ppt file is also available at  **`docs/CS4555.pptx`**.
-
----
-
-## Deployment (My current setup)
-
-| Piece | Where it runs | Notes |
-|--------|----------------|--------|
-| **Frontend** | **Vercel** | Static build; must set **`VITE_API_URL`** at build time to the Fly API base |
-| **Backend** | **Fly.io** | Node process; set **`APP_MODE=production`** (Fly secret or env), **`DATABASE_URL`** or **`DATABASE_CONNECTION_STRING`** (Supabase Postgres), **`CORS_ALLOWED_ORIGINS`** (your Vercel app URL(s), comma-separated), plus auth/JWT secrets as needed. |
-| **Database** | **Supabase** (Postgres) | Used when the backend is in **production** mode and a DB URL is configured. |
-| **Cache (Redis)** | **Not wired in prod yet (planned)** | The backend already supports optional caching via **`REDIS_URL`** (`BE/src/utils/cache.ts`). If unset, the app runs with **caching disabled** (warning in logs). When you add Redis (e.g. **Upstash**, **Fly Redis**, or Docker locally), set **`REDIS_URL`** on Fly and redeploy; use the same variable in **`BE/.env`** for local testing. Health: **`GET /api/cache/health`**. |
-
-**Local development** does not need to mirror that stack: the backend defaults to **local mode** (see below) and uses a **SQLite** file under `BE/data/`, while the Vite dev server **proxies** `/api` to `http://localhost:3000` so the browser avoids CORS.
+Local dev uses SQLite + the Vite proxy — no Supabase needed. `APP_MODE` defaults to `local` unless `NODE_ENV=production`.
 
 ---
 
-## Backend: local vs production (`APP_MODE`)
-
-The backend chooses behavior from **`APP_MODE`** and **`NODE_ENV`** (see `BE/src/config/appMode.ts`):
-
-| Mode | How it is selected | Database | CORS |
-|------|---------------------|----------|------|
-| **local** | `APP_MODE=local`, or `APP_MODE` unset and `NODE_ENV` is not `production` | Always **SQLite** (`BE/data/database.sqlite`); Supabase URLs in `.env` are ignored for TypeORM | Permissive (reflects request origin; easy mobile/LAN testing) |
-| **production** | `APP_MODE=production`, or `APP_MODE` unset and `NODE_ENV=production` | **Postgres** when `DATABASE_URL` / `DATABASE_CONNECTION_STRING` is set (e.g. Supabase) | **`CORS_ALLOWED_ORIGINS`** whitelist (comma-separated); if empty, all origins are allowed |
-
-For **Fly**, set a secret such as **`APP_MODE=production`** so production behavior does not depend on how `NODE_ENV` is set. **`APP_MODE` is only read by the backend**; the frontend does not use it.
-
 ---
 
-## Lot maps (SVG heat maps)
+## Running locally
 
-For lots that have an SVG in **`FE/src/images/svgs/{LotName}.svg`** (e.g. `TimedParking1.svg`), the seed reads spot layers from the file and creates one parking spot per layer (in order). Layers with `"BG"` in the name are ignored. Each spot layer should have **`data-spot-label`** (e.g. `A-001`, `B-002`). On the lot detail page, the SVG is shown as a heat map (green = free, red = taken) and each layer is clickable to toggle that spot. **Figma:** [Parking Lot SVGs](https://www.figma.com/design/QDDoFP63VBhhGUEAbM6J0H/Parking-Lot-SVGs?node-id=0-1&t=OmokzgOiqOu1ibUh-1). Export and workflow notes: **`docs/figma.md`**.
-
----
-
-## Realistic Campus Walking Paths (Google Earth)
-
-For every parking lot in the database (16 total), there are routes mapped to every building (12 total). Each route was manually drawn in Google Earth to accurately reflect how a real student would walk across the UNB Saint John campus.
-
-These paths were created carefully over many hours to ensure realistic traversal (sidewalks, paths, and natural walking flow), rather than straight-line or computed distances.
-
-You can view an image of the mapped routes here:  
-**`DTProj/docs/CampusPathMapping.png`**
-
-You can also explore the full interactive map:  
-**Google Earth:** https://earth.google.com/earth/d/1yszqkB2j1mN3LhwzE4qe0GqbB34wmLEi?usp=sharing
-
-The complete dataset of all routes and distances has been manually exported as a KML file located at:  
-**`DTProj/BE/data/DTParkingDistances.kml`**
-
----
-
-## Running the backend
+**First time only** — run the setup script to install dependencies, seed the database, and pull in historical data:
 
 ```bash
-cd BE
-npm install
-# Create BE/.env (gitignored) with any secrets you need locally.
-npm run seed    # 16 lots; originally believed to be 1,170 spots but recounted to 1,231 (BE/data/ParkingLotINFO.txt); spots from SVG where present else fallback; buildings and lot–building distances
-npm run build
-npm start
+# Windows
+setup.bat
+
+# Mac / Linux
+chmod +x setup.sh && ./setup.sh
 ```
 
-Runs on port **3000** by default (`PORT` env overrides). With default **local** mode, seeding and runtime use **SQLite**; you do not need Supabase configured on your laptop for a normal dev loop. **Redis** is optional: without **`REDIS_URL`**, caching stays off (see deployment table above).
-
-**Courses** are not in the seed. To scrape sections (time, room, building, enrollment) from UNB self-service: `npm run scrape-courses -- --token "TOKEN" --cookie "COOKIE"` (paste from DevTools after logging in at selfservice.unb.ca; output `data/scraped-courses.json`). Then `npm run seed-courses -- data/scraped-courses.json` (add `--replace` to clear and re-import). For dev with auto-reload use **`npm run dev`**.
-
-**Production-oriented local test:** set **`APP_MODE=production`** in `BE/.env` if you need to exercise Postgres and strict CORS against a real connection string (optional).
-
-A simulator updates ~5% of parking spot statuses every 5 seconds so the lot doesn’t sit static. Override with `SIM_OCCUPANCY` (0–1) if you want a different average occupancy.
-
-### Google Earth Engine (map tiles)
-
-We used to keep a **`BE/serviceAccount.json`** file (gitignored) for local Earth Engine auth. That worked, but credentials on disk are easy to mishandle and don’t match how **Fly** and other hosts expect secrets. The supported approach now is **environment variables** (12-factor style): same code locally and in production, no key file in the repo, secrets only in **`.env`** (local, gitignored) or the platform’s secret store.
-
-Credentials are resolved in this order (see `BE/src/modules/earthEngine/earthEngine.service.ts`):
-
-1. **`EARTH_ENGINE_SERVICE_ACCOUNT_JSON`** — full service-account JSON as a single string (useful if your host accepts one secret).
-2. **`EARTH_ENGINE_CLIENT_EMAIL`** + **`EARTH_ENGINE_PRIVATE_KEY`** — recommended for **Fly secrets** / **`BE/.env`**. Store the private key with newline characters as the two-character sequence **`\n`** in the env value; the backend expands them before auth.
-3. **Optional** with (2): **`EARTH_ENGINE_PROJECT_ID`**, **`EARTH_ENGINE_PRIVATE_KEY_ID`**, and the other `EARTH_ENGINE_*` URLs from the JSON if you need a full credential object shape.
-4. **File fallback (optional, e.g. local experiments):** **`GOOGLE_APPLICATION_CREDENTIALS`** or **`EARTH_ENGINE_SERVICE_ACCOUNT_PATH`** pointing at a JSON key file, or **`BE/serviceAccount.json`** if it still exists (gitignored; not the preferred workflow).
-
-The service account **must be registered as a user** in your Google Earth Engine project.
-
-- **Tiles (proxied):** `GET /api/earth-engine/tiles/{z}/{x}/{y}?asset=...` — serves map tiles through the backend so the client never sees mapid/token. Default `asset` is `unbsj` (UNBSJ image + section outlines). You can protect this route with auth middleware so only logged-in users get tiles.
-- **Sections:** `GET /api/earth-engine/sections` — parking section polygons as GeoJSON for the map.
-
----
-
-## Running the frontend
+Then start the servers (same as always):
 
 ```bash
-cd FE
-npm install
-npm run dev
+# Terminal 1
+cd BE && npm run dev
+
+# Terminal 2
+cd FE && npm run dev
 ```
 
-Runs at **http://localhost:5173**. Start the backend first so the Vite **`/api` proxy** can reach **`http://localhost:3000`** (override proxy target with **`VITE_API_PROXY_TARGET`** if needed).
-
-In **`npm run dev`**, the app normally calls **`/api/...` on the dev server** (same origin), so you avoid CORS even if `VITE_API_URL` in `.env` points at production. To force the dev app to talk to a **remote** API instead, set **`VITE_DEV_REMOTE_API=true`**. **Production builds** (e.g. on Vercel) use **`VITE_API_URL`** as the API base. See `FE/README.md` for env details.
+Runs at **http://localhost:5173**. Start the backend first so the Vite `/api` proxy can reach `http://localhost:3000` (override with `VITE_API_PROXY_TARGET`). Set `VITE_DEV_REMOTE_API=true` to point dev at a remote API instead of the local proxy.
 
 ---
 
-## What’s in BE
+## Environment variables
 
-- **TypeScript, TypeORM** – **SQLite** in local mode; **Postgres** (e.g. Supabase) in production mode when a database URL is set. Entities live in `*.entity.ts` with the usual decorators.
-- **Zod** for request validation – each module has a schema file with create/update shapes.
-- **Thin controllers** – they validate, call the service, send the response. Logic lives in **services**.
-- **Routes** – just wire method + path to a controller; no logic in the route files.
+Copy the example files on first run (the setup script does this automatically):
 
-Under `BE/src/` you have `db/` (TypeORM data source), `middleware/`, `utils/`, and `modules/`. Each module (parkingLots, parkingSpots, parkingSpotLogs, historical, users, students, classes, classSchedule, buildings, earthEngine) has its own entity, schema, service, controller, and route. The simulator is a separate module with no HTTP routes.
+```bash
+cp BE/.env.example BE/.env
+cp FE/.env.example FE/.env
+```
+
+Defaults work out of the box for local development. See the example files for production and Google Earth Engine options.
+
+---
+
+## Google Earth Engine
+
+Map tiles require a GEE service account. Without one the map won't load but everything else works fine. Place your service account key at `BE/serviceAccount.json` (gitignored), or set `EARTH_ENGINE_CREDENTIALS_JSON` in `BE/.env` to the full JSON on one line. The service account must be registered as a GEE user at code.earthengine.google.com.
+
+- **Tiles (proxied):** `GET /api/earth-engine/tiles/{z}/{x}/{y}?asset=...`
+- **Thumbnail:** `GET /api/earth-engine/thumbnail?asset=...`
+
+---
+
+## Lot maps (SVG mini-maps)
+
+Each lot has a custom SVG in `FE/src/images/svgs/{LotName}.svg` built from satellite imagery. The seed reads `data-spot-label` attributes (e.g. `A-001`, `B-002`) and creates one `ParkingSpot` per element. Layers with `"BG"` in the name are skipped. At runtime spots are recoloured based on live status — green = free, red = occupied. See `docs/figma.md` for the Figma process and the SVG export plugin needed to preserve element IDs.
+
+---
+
+## Scripts
+
+All scripts run from `BE/`:
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Dev server with auto-reload (port 3000) |
+| `npm run build` | Compile TypeScript |
+| `npm start` | Run compiled build |
+| `npm test` | Run Jest test suite |
+| `npm run seed` | Full DB init — lots, spots, buildings, distances |
+| `npm run seed-replace` | Rebuild parking tables only, preserve users and courses |
+| `npm run seed-courses` | Load `data/scraped-courses.json` into DB |
+| `npm run populate-spots` | Tag accessible spots from SVG fill colours |
+| `npm run recalc-distances` | Recompute per-spot distances from label parsing |
+| `npm run gen-historical` | Generate synthetic historical occupancy records |
+| `npm run import-birmingham` | Download and import UCI Birmingham real parking data |
+| `npm run gen-residuals` | Compute DDM residual corrections |
+| `npm run gen-event-residuals` | Compute event and weekend residual corrections |
+
+To re-scrape course data for a new semester: `npm run scrape-courses -- --token "TOKEN" --cookie "COOKIE"` (copy both from DevTools after logging in at selfservice.unb.ca), then `npm run seed-courses -- --replace`.
+
+---
+
+## What's in BE
+
+- **TypeScript, TypeORM, SQLite** (local) / **PostgreSQL** (production) — entities in `*.entity.ts`. Set `APP_MODE=production` to switch to Postgres via `DATABASE_CONNECTION_STRING`.
+- **Zod** for request validation — each module has a schema file.
+- **Thin controllers** — validate, call service, send response. Logic lives in services.
+- **Prediction engine** — hybrid process-based model with a data-driven residual correction layer. Residuals are stored in `lot_occupancy_corrections` and weighted by `tanh(nSamples/10)`.
+- **Campus parameters** — behavioural constants (carpool rate, absence rate, etc.) stored in `campus_parameters` table and applied at prediction time.
+
+Under `BE/src/` you have `db/`, `middleware/`, `config/`, `utils/`, and `modules/`. Each module has its own entity, schema, service, controller, and route.
 
 ---
 
 ## API
 
-Full spec is in **`BE/openapi.yaml`**. Open it in [Swagger Editor](https://editor.swagger.io/) or run `npx @redocly/cli preview BE/openapi.yaml` to browse. Keep the spec updated when you add or change endpoints.
-
+Full spec: `BE/openapi.yaml` — open at [editor.swagger.io](https://editor.swagger.io/) or run `npx @redocly/cli preview BE/openapi.yaml`.

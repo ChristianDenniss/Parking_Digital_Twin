@@ -70,8 +70,8 @@ function ForecastInsightsBlock(props: {
     Math.abs(mapVsCurve) <= 1
       ? "Total occupied stalls match spreading the vehicle curve evenly across all spots; only which stalls fill changes by lot."
       : mapVsCurve > 0
-        ? `Map total is ${mapVsCurve} pts higher than an even spread from the curve midpoint—rounding / allocation edge effects.`
-        : `Map total is ${Math.abs(mapVsCurve)} pts lower than an even spread from the curve midpoint—rounding / allocation edge effects.`;
+        ? `Map total is ${mapVsCurve} pts higher than an even spread from the curve midpoint - rounding / allocation edge effects.`
+        : `Map total is ${Math.abs(mapVsCurve)} pts lower than an even spread from the curve midpoint - rounding / allocation edge effects.`;
 
   return (
     <div className="space-y-2 overflow-visible">
@@ -87,7 +87,7 @@ function ForecastInsightsBlock(props: {
               Bucket
             </HoverTerm>{" "}
             <span className="font-medium text-slate-900">
-              {ins.profileSlotStart}–{ins.profileSlotEnd}
+              {ins.profileSlotStart}-{ins.profileSlotEnd}
             </span>{" "}
             (
             <HoverTerm tip="Academic term baked into the profile JSON when it was generated (e.g. Winter 2026).">
@@ -122,7 +122,7 @@ function ForecastInsightsBlock(props: {
                 <HoverTerm tip="Low and high vehicle counts from the profile’s uncertainty ranges (attendance, carpooling, etc.), scaled like the midpoint.">
                   band{" "}
                   <span className="tabular-nums">
-                    {ins.modeledCarsOnCampusMin}–{ins.modeledCarsOnCampusMax}
+                    {ins.modeledCarsOnCampusMin}-{ins.modeledCarsOnCampusMax}
                   </span>
                 </HoverTerm>
                 )
@@ -140,7 +140,7 @@ function ForecastInsightsBlock(props: {
           </p>
           <p className="text-slate-500 text-[11px]">
             <HoverTerm tip="If we took the curve’s vehicle midpoint and filled stalls campus-wide at the same rate (no favoring lots near busy buildings), this is the percent full. The map scenario uses the same total count but shifts which lots fill based on class locations.">
-              Even spread from midpoint → ~{ins.curveEvenSpreadOccupancyPercent}% of all stalls.
+              Even spread from midpoint - ~{ins.curveEvenSpreadOccupancyPercent}% of all stalls.
             </HoverTerm>{" "}
             {mapVsCurveNote}
           </p>
@@ -158,7 +158,7 @@ function ForecastInsightsBlock(props: {
             </HoverTerm>{" "}
             {ins.profileClassEnrolledProxy != null ? (
               <>
-                <HoverTerm tip="Headcount-style total the profile stored for this time slice (enrolled seats overlapping the window, plus baseline campus presence rules in the generator—not the same as unique people).">
+                <HoverTerm tip="Headcount-style total the profile stored for this time slice (enrolled seats overlapping the window, plus baseline campus presence rules in the generator - not the same as unique people).">
                   enrollment proxy{" "}
                   <strong className="tabular-nums">{ins.profileClassEnrolledProxy.toLocaleString()}</strong>
                 </HoverTerm>
@@ -177,7 +177,7 @@ function ForecastInsightsBlock(props: {
             .
           </p>
           <p>
-            <HoverTerm tip="What is in your backend right now after seed/scrape—used when assigning extra demand to general lots near buildings with overlapping classes.">
+            <HoverTerm tip="What is in your backend right now after seed/scrape - used when assigning extra demand to general lots near buildings with overlapping classes.">
               <span className="text-slate-500">Live course DB (today&apos;s seed):</span>
             </HoverTerm>{" "}
             <HoverTerm tip="For each section that overlaps this window, we add its enrollment (or 1 if missing) and sum across buildings. Double-counts if a student has two overlapping sections.">
@@ -204,7 +204,7 @@ function ForecastInsightsBlock(props: {
         <div className="shrink-0 flex items-center">
           <HoverTerm
             noUnderline
-            tip="Direction of the campus vehicle curve from the previous 15-minute bucket → next bucket around your time. It is not a weather forecast; it describes the static profile shape."
+            tip="Direction of the campus vehicle curve from the previous 15-minute bucket - next bucket around your time. It is not a weather forecast; it describes the static profile shape."
           >
             <span
               className={`inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide leading-none ${trendBadgeClass(ins.occupancyTrendNextSlot)}`}
@@ -220,7 +220,7 @@ function ForecastInsightsBlock(props: {
 
       {ins.classTransitionSummary ? (
         <p className="text-[11px] text-violet-900 bg-violet-50 border border-violet-100 rounded px-2 py-1.5 leading-snug overflow-visible">
-          <HoverTerm tip="The parking simulator randomly flips some stall statuses on a timer. Near typical class-change minutes it speeds up those flips so the fake data feels more volatile—this does not change the deterministic forecast math above.">
+          <HoverTerm tip="The parking simulator randomly flips some stall statuses on a timer. Near typical class-change minutes it speeds up those flips so the fake data feels more volatile - this does not change the deterministic forecast math above.">
             <span className="font-semibold">Simulator:</span> {ins.classTransitionSummary} (×
             {ins.classTransitionMultiplier} churn vs baseline minute.)
           </HoverTerm>
@@ -237,7 +237,7 @@ export function ParkingForecastSection(props: {
 }) {
   const { mapDataMode, mapScenarioDate, mapScenarioTimeHHmm } = props;
   const [data, setData] = useState<ParkingForecastResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -253,34 +253,31 @@ export function ParkingForecastSection(props: {
       q.set("time", normalizeTimeForQuery(mapScenarioTimeHHmm));
     }
 
-    setLoading(true);
+    setInFlight(true);
     setError(null);
 
-    const t = setTimeout(() => {
-      void (async () => {
-        try {
-          const path = q.toString()
-            ? `/api/parking-lots/forecast?${q.toString()}`
-            : "/api/parking-lots/forecast";
-          const res = await api.get<ParkingForecastResponse>(path);
-          if (!cancelled) {
-            setData(res);
-            setError(null);
-          }
-        } catch (e) {
-          if (!cancelled) {
-            setData(null);
-            setError(e instanceof Error ? e.message : "Could not load forecast");
-          }
-        } finally {
-          if (!cancelled) setLoading(false);
+    void (async () => {
+      try {
+        const path = q.toString()
+          ? `/api/parking-lots/forecast?${q.toString()}`
+          : "/api/parking-lots/forecast";
+        const res = await api.get<ParkingForecastResponse>(path);
+        if (!cancelled) {
+          setData(res);
+          setError(null);
         }
-      })();
-    }, 380);
+      } catch (e) {
+        if (!cancelled) {
+          setData(null);
+          setError(e instanceof Error ? e.message : "Could not load forecast");
+        }
+      } finally {
+        if (!cancelled) setInFlight(false);
+      }
+    })();
 
     return () => {
       cancelled = true;
-      clearTimeout(t);
     };
   }, [mapDataMode, mapScenarioDate, mapScenarioTimeHHmm]);
 
@@ -299,7 +296,7 @@ export function ParkingForecastSection(props: {
           </span>
         ) : mapDataMode === "pick-time" ? (
           <span className="rounded bg-amber-50 text-amber-900 text-[10px] font-semibold px-2 py-0.5">
-            Set map date & time — using Saint John now
+            Set map date & time - using Saint John now
           </span>
         ) : (
           <span className="rounded bg-slate-100 text-slate-600 text-[10px] font-semibold px-2 py-0.5">
@@ -308,38 +305,11 @@ export function ParkingForecastSection(props: {
         )}
       </div>
 
-      {loading && (
-        <div className="mt-2 space-y-2" aria-busy="true">
-          <span className="sr-only">Loading parking forecast model</span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div className="rounded border border-slate-100 bg-slate-50/90 p-2.5 space-y-2">
-              <div className="skeleton h-3 w-32 rounded" />
-              <div className="skeleton h-3 w-full rounded" />
-              <div className="skeleton h-3 w-[min(100%,18rem)] rounded" />
-            </div>
-            <div className="rounded border border-slate-100 bg-slate-50/90 p-2.5 space-y-2">
-              <div className="skeleton h-3 w-36 rounded" />
-              <div className="skeleton h-3 w-full rounded" />
-              <div className="skeleton h-3 w-[min(100%,14rem)] rounded" />
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 pt-0.5">
-            <div className="skeleton h-5 w-20 rounded border border-slate-200" />
-            <div className="skeleton h-3 flex-1 min-w-[10rem] max-w-md rounded" />
-          </div>
-          <div className="pt-2 border-t border-slate-200">
-            <div className="skeleton h-3 w-44 rounded" />
-          </div>
-        </div>
-      )}
-
-      {!loading && error && (
+      {error ? (
         <p className="text-xs text-red-600 mt-2" role="alert">
           {error}
         </p>
-      )}
-
-      {!loading && !error && data && (
+      ) : (
         <details className="mt-2 border-t border-slate-200 pt-2 group overflow-visible">
           <summary className="cursor-pointer list-none text-xs font-medium text-unb-red hover:text-unb-red-dark hover:underline underline-offset-2 flex items-center gap-2 select-none [&::-webkit-details-marker]:hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-unb-red focus-visible:ring-offset-1 rounded-sm py-0.5 -mx-0.5 px-0.5 w-fit max-w-full">
             <span
@@ -349,9 +319,17 @@ export function ParkingForecastSection(props: {
               ▸
             </span>
             Advanced model details
+            {inFlight ? (
+              <span className="text-[10px] font-normal text-slate-400 normal-case">Updating…</span>
+            ) : null}
           </summary>
           <div className="mt-2 pl-4 border-l-2 border-slate-100 overflow-visible">
-            <ForecastInsightsBlock data={data} />
+            {inFlight && !data ? (
+              <p className="text-xs text-slate-500" aria-busy="true">
+                Loading model details…
+              </p>
+            ) : null}
+            {data ? <ForecastInsightsBlock data={data} /> : null}
           </div>
         </details>
       )}

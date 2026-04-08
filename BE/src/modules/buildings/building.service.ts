@@ -169,14 +169,14 @@ export async function remove(id: string): Promise<Building | null> {
 }
 
 /**
- * Match a course `building` string (e.g. "Hazen Hall") to a campus building row.
+ * Match a course `building` string (e.g. "Hazen Hall") to a campus building row using an in-memory list.
  * Handles shortened names vs full names (e.g. "Hazen Hall" → "Sir Douglas Hazen Hall").
+ * Use this when you already called `findAll()` so each course string does not re-query the DB.
  */
-export async function findBuildingForCourseBuilding(courseBuilding: string | null | undefined): Promise<Building | null> {
+export function matchCourseBuildingString(courseBuilding: string | null | undefined, all: Building[]): Building | null {
   const raw = courseBuilding?.trim();
   if (!raw) return null;
   const q = raw.toLowerCase();
-  const all = await findAll();
 
   const exact = all.find(
     (b) => b.name.toLowerCase() === q || (b.code != null && b.code.toLowerCase() === q)
@@ -203,6 +203,17 @@ export async function findBuildingForCourseBuilding(courseBuilding: string | nul
     if (score > 0 && (!best || score > best.score)) best = { b, score };
   }
   return best?.b ?? null;
+}
+
+/**
+ * Match a course `building` string (e.g. "Hazen Hall") to a campus building row.
+ * Handles shortened names vs full names (e.g. "Hazen Hall" → "Sir Douglas Hazen Hall").
+ */
+export async function findBuildingForCourseBuilding(courseBuilding: string | null | undefined): Promise<Building | null> {
+  const raw = courseBuilding?.trim();
+  if (!raw) return null;
+  const all = await findAll();
+  return matchCourseBuildingString(raw, all);
 }
 
 function elevationFromMarkerGeometryAndProps(

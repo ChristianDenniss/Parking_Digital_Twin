@@ -58,8 +58,8 @@ function sameLocalCalendarDay(a: Date, b: Date): boolean {
 }
 
 function spotLabel(spot: ParkingSpot): string {
-  if (spot.label?.trim()) return spot.label.trim();
-  return `${spot.section} ${spot.row} #${spot.index}`;
+  const label = spot.label?.trim() ? spot.label.trim() : `${spot.section} ${spot.row} #${spot.index}`;
+  return spot.isAccessible ? `${label} ♿` : label;
 }
 
 /** Open lot heat map with a specific stall outlined (see LotDetail `?spot=`). */
@@ -101,7 +101,7 @@ export type HomeOutletContextValue = {
   /** Shows map spinner + message while fetching the day plan and applying its scenario. */
   setDayPlanMapLoading: (loading: boolean) => void;
   /** Scroll the campus map into view (e.g. after clicking a plan step so loading is visible). */
-  scrollCampusMapIntoView: () => void;
+  scrollCampusMapIntoView: (behavior?: ScrollBehavior) => void;
 };
 
 const DAY_PLAN_CACHE_PREFIX = "dt_day_plan_v1";
@@ -136,7 +136,7 @@ function DayParkingPlanCard(props: {
   onPlanDateChange: (v: string) => void;
   applyPlanScenarioIfChanged: (dateYmd: string, timeHHmm: string) => Promise<void>;
   setDayPlanMapLoading: (loading: boolean) => void;
-  scrollCampusMapIntoView: () => void;
+  scrollCampusMapIntoView: (behavior?: ScrollBehavior) => void;
   navigate: NavigateFunction;
   mapDataMode: ParkingMapDataMode;
   mapScenarioDate: string;
@@ -212,7 +212,24 @@ function DayParkingPlanCard(props: {
               setPlan(data);
               setPlanError(null);
               setPlanLoading(false);
-              setDayPlanMapLoading(false);
+              const initial = data.segments.find((s) => s.type === "initial_arrival");
+              if (initial && initial.type === "initial_arrival") {
+                const { dateYmd, timeHHmm } = initial.occupancyScenario;
+                if (dateYmd?.trim() && timeHHmm?.trim()) {
+                  setDayPlanMapLoading(true);
+                  void (async () => {
+                    try {
+                      await applyIfChangedRef.current(dateYmd, timeHHmm);
+                    } finally {
+                      setDayPlanMapLoading(false);
+                    }
+                  })();
+                } else {
+                  setDayPlanMapLoading(false);
+                }
+              } else {
+                setDayPlanMapLoading(false);
+              }
               return;
             }
           }
@@ -256,6 +273,33 @@ function DayParkingPlanCard(props: {
   useEffect(() => {
     loadPlan();
   }, [loadPlan]);
+
+  const prevPlanPanelModeRef = useRef<PlanPanelMode>(planPanelMode);
+  useEffect(() => {
+    const prev = prevPlanPanelModeRef.current;
+    prevPlanPanelModeRef.current = planPanelMode;
+    if (planPanelMode === "schedule" && prev === "building" && token && planDate.trim()) {
+      loadPlan({ force: true });
+    }
+  }, [planPanelMode, token, planDate, loadPlan]);
+
+  const mapPlanFingerprint = `${mapDataMode}|${mapScenarioDate}|${mapScenarioTimeHHmm}`;
+  const prevMapPlanFingerprintRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevMapPlanFingerprintRef.current === null) {
+      prevMapPlanFingerprintRef.current = mapPlanFingerprint;
+      return;
+    }
+    if (prevMapPlanFingerprintRef.current === mapPlanFingerprint) return;
+    prevMapPlanFingerprintRef.current = mapPlanFingerprint;
+    if (!token || !planDate.trim() || planPanelMode !== "schedule") return;
+    try {
+      sessionStorage.removeItem(dayPlanCacheKey(token, planDate));
+    } catch {
+      /* private mode */
+    }
+    loadPlan();
+  }, [mapPlanFingerprint, token, planDate, planPanelMode, loadPlan]);
 
   useEffect(() => {
     if (planPanelMode !== "building") return;
@@ -326,9 +370,12 @@ function DayParkingPlanCard(props: {
   }, [planPanelMode, selectedBuildingId, parkingOccupancySignature, token]);
 
   const openParkingStep = (href: string, os: { dateYmd: string; timeHHmm: string }) => {
-    scrollCampusMapIntoView();
+    scrollCampusMapIntoView("smooth");
     void (async () => {
       await applyPlanScenarioIfChanged(os.dateYmd, os.timeHHmm);
+      // Initial arrival often no-ops here (plan already applied same scenario); navigating immediately
+      // can cancel smooth scroll before it finishes. Snap map into view, then open the lot.
+      scrollCampusMapIntoView("instant");
       navigate(href);
     })();
   };
@@ -600,13 +647,11 @@ function DayParkingPlanCard(props: {
           <div>
             <h3 className="text-base font-semibold text-slate-800">Closest open stall by building</h3>
             <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-              Picks the nearest lot that still has an empty stall and that your role may use (for example, staff-only
-              lots are skipped unless you are staff). Uses{" "}
-              <strong>{mapDataMode === "live" ? "live" : "scenario"}</strong> occupancy—the same snapshot as the campus
-              map—and re-checks whenever spot data updates (about every 30 seconds while this page is open and the tab is
-              visible). With <strong>Pick time</strong> on the map, the chosen date and time are treated as when you want
-              to be <strong>at this building</strong> (selected floor); we suggest when to <strong>be parked</strong> at
-              the stall using the same walk / in-building / congestion model as the class plan.
+              Nearest eligible lot with a free stall (permit rules apply). Uses{" "}
+              <strong>{mapDataMode === "live" ? "live" : "scenario"}</strong> occupancy, same as the campus map, and
+              refreshes about every 30 seconds while this tab is visible. With <strong>Pick time</strong>, that clock is
+              your arrival at this building and floor; we suggest when to be parked using the same travel model as the
+              class plan.
             </p>
             {!token ? (
               <p className="text-xs text-slate-500 mt-2">

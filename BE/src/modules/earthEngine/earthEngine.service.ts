@@ -78,7 +78,8 @@ function getCredentialsPath(): string {
 }
 
 function loadCredentialsFromEnvJson(): object | null {
-  const raw = process.env.EARTH_ENGINE_SERVICE_ACCOUNT_JSON?.trim();
+  // Support both env var names for backward compatibility
+  const raw = (process.env.EARTH_ENGINE_SERVICE_ACCOUNT_JSON ?? process.env.EARTH_ENGINE_CREDENTIALS_JSON)?.trim();
   if (!raw) return null;
   try {
     return JSON.parse(raw) as object;

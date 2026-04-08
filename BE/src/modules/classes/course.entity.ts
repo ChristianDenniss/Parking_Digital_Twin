@@ -33,6 +33,7 @@ export class Course {
   @Column({ type: "text", nullable: true })
   room!: string | null;
 
+  /** Banner-style section code (display / catalog identity; arrival plans assume Mon–Fri for all courses). */
   @Column({ type: "text", nullable: true })
   sectionCode!: string | null;
 

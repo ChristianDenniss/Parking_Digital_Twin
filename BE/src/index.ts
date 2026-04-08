@@ -20,6 +20,9 @@ import buildingRoute from "./modules/buildings/building.route";
 import authRoute from "./modules/users/auth.route";
 import userRoute from "./modules/users/user.route";
 import earthEngineRoute from "./modules/earthEngine/earthEngine.route";
+import predictionRoute from "./modules/prediction/prediction.route";
+import whatIfRoute from "./modules/whatif/whatif.route";
+import * as campusParameterService from "./modules/campusParameters/campusParameter.service";
 
 const PORT = process.env.PORT || 3000;
 
@@ -39,6 +42,9 @@ async function main() {
   await AppDataSource.initialize();
   console.log(`[db] Connected: ${DB_CONNECTION_SUMMARY}`);
   await initializeEarthEngine();
+
+  // Seed campus behavioural parameters (carpool, absence rates) if not present
+  await campusParameterService.ensureDefaults();
 
   const app = express();
   app.use(
@@ -72,6 +78,8 @@ async function main() {
   app.use("/api/auth", authRoute);
   app.use("/api/users", userRoute);
   app.use("/api/earth-engine", earthEngineRoute);
+  app.use("/api/prediction", predictionRoute);
+  app.use("/api/what-if", whatIfRoute);
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, service: "unb-parking-twin-be" });

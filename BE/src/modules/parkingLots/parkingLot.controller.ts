@@ -62,7 +62,7 @@ export async function recommend(req: Request, res: Response) {
   const data = result.data!;
   const authUser = (req as Request & { user?: AuthUser }).user;
   const parkingEligibility = authUser
-    ? { role: authUser.role, resident: authUser.resident }
+    ? { role: authUser.role, resident: authUser.resident, disabled: authUser.disabled }
     : DEFAULT_ANONYMOUS_PARKING_ELIGIBILITY;
 
   const recommendation = await parkingLotService.recommendBestParking({

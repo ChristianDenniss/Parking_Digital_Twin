@@ -8,6 +8,7 @@ import { Auth } from "./pages/Auth";
 import { Logs } from "./pages/Logs";
 import { Api } from "./pages/Api";
 import { Schedule } from "./pages/Schedule";
+import { WhatIf } from "./pages/WhatIf";
 import unbSymbol from "./images/UNBSymbol.png";
 
 const tokenKey = "parking_twin_token";
@@ -16,6 +17,7 @@ const mainNavItems = [
   { to: "/", label: "Home", end: true },
   { to: "/lots", label: "Lots", end: false },
   { to: "/logs", label: "Logs", end: false },
+  { to: "/what-if", label: "What-If", end: false },
   { to: "/apispec", label: "API", end: false },
 ] as const;
 
@@ -25,6 +27,7 @@ function Nav() {
   const [menuOpen, setMenuOpen] = useState(false);
   const token = typeof window !== "undefined" ? localStorage.getItem(tokenKey) : null;
 
+  // Close mobile menu on route change
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
@@ -129,6 +132,7 @@ export default function App() {
             <Route path="apispec" element={<Api />} />
             <Route path="schedule" element={<Schedule />} />
           </Route>
+          <Route path="what-if" element={<WhatIf />} />
         </Routes>
       </main>
     </div>

@@ -13,6 +13,8 @@ import { ClassSchedule } from "../modules/classSchedule/classSchedule.entity";
 import { User } from "../modules/users/user.entity";
 import { Building } from "../modules/buildings/building.entity";
 import { LotBuildingDistance } from "../modules/buildings/lotBuildingDistance.entity";
+import { CampusParameter } from "../modules/campusParameters/campusParameter.entity";
+import { LotOccupancyCorrection } from "../modules/prediction/lotOccupancyCorrection.entity";
 
 const dbPath = path.join(__dirname, "..", "..", "data", "database.sqlite");
 const databaseUrlRaw =
@@ -43,6 +45,8 @@ const baseOptions = {
     ClassSchedule,
     Building,
     LotBuildingDistance,
+    CampusParameter,
+    LotOccupancyCorrection,
   ],
   migrations: [],
   subscribers: [],
@@ -57,7 +61,7 @@ const dataSourceOptions: DataSourceOptions = usePostgres
     }
   : {
       ...baseOptions,
-      type: "sqlite",
+      type: "better-sqlite3",
       database: dbPath,
     };
 

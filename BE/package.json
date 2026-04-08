@@ -11,7 +11,15 @@
     "seed-replace": "ts-node scripts/seed.ts --replace",
     "seed-courses": "ts-node scripts/seed-courses.ts data/scraped-courses.json",
     "scrape-courses": "ts-node scripts/scrape-courses.ts",
-    "kml-to-edges": "ts-node scripts/kml-to-edges.ts"
+    "kml-to-edges": "ts-node scripts/kml-to-edges.ts",
+    "gen-historical": "ts-node --transpile-only scripts/generateHistoricalData.ts",
+    "gen-historical-clear": "ts-node --transpile-only scripts/generateHistoricalData.ts --clear",
+    "populate-spots": "ts-node --transpile-only scripts/populateSpotAttributes.ts",
+    "recalc-distances": "ts-node --transpile-only scripts/recalculateSpotDistances.ts",
+    "gen-residuals": "ts-node --transpile-only scripts/generateResiduals.ts",
+    "gen-event-residuals": "ts-node --transpile-only scripts/generateEventResiduals.ts",
+    "import-birmingham": "ts-node --transpile-only scripts/importBirminghamData.ts",
+    "test": "jest"
   },
   "keywords": [
     "parking",
@@ -25,7 +33,9 @@
   "license": "MIT",
   "dependencies": {
     "@google/earthengine": "^1.7.16",
+    "@types/cors": "^2.8.19",
     "bcrypt": "^6.0.0",
+    "better-sqlite3": "^12.8.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^4.21.0",
@@ -34,17 +44,20 @@
     "pg": "^8.20.0",
     "redis": "^5.11.0",
     "reflect-metadata": "^0.2.2",
-    "sqlite3": "^5.1.7",
     "typeorm": "^0.3.20",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/better-sqlite3": "^7.6.12",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
+    "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/luxon": "^3.7.1",
     "@types/node": "^22.0.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.6.0"

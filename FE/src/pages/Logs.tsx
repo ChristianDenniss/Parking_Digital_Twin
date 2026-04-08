@@ -19,9 +19,8 @@ export function Logs() {
       if (cancelled || document.hidden || !navigator.onLine) return;
       api
         .get<ParkingSpotLog[]>("/api/parking-spot-logs")
-        .then(setLogs)
-        .catch((e) => setError(e.message))
-        .finally(() => setLoading(false));
+        .then((data) => { if (!cancelled) { setLogs(data); setLoading(false); } })
+        .catch((e) => { if (!cancelled) { setError(e.message); setLoading(false); } });
     };
     const onResume = () => fetchLogs();
     setLoading(true);
