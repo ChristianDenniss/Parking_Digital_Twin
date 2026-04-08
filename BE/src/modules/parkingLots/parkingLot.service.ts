@@ -178,8 +178,15 @@ export async function recommendBestParking(params: {
       const occupiedCount = allSpots.filter((s) => !isSpotEmpty(s)).length;
       const occupancyRatio = allSpots.length > 0 ? occupiedCount / allSpots.length : 0;
 
+      /**
+       * Predicted mode uses `predictedSpotStatusByLotId` from the same deterministic snapshot as
+       * `POST /api/parking-spots/apply-scenario` (deterministic). Random stall choice here would
+       * desync the day plan / heat map from the applied campus state after the user switches steps.
+       */
+      const snapshotDriven =
+        params.stateMode === "predicted" && predictedSpotStatuses != null;
       let candidateSpot: ParkingSpot | undefined;
-      if (occupancyRatio < 0.30 && emptySpots.length > 1) {
+      if (!snapshotDriven && occupancyRatio < 0.30 && emptySpots.length > 1) {
         const quartileCount = Math.max(1, Math.ceil(emptySpots.length * 0.25));
         const pool = emptySpots.slice(0, quartileCount);
         candidateSpot = pool[Math.floor(Math.random() * pool.length)];
