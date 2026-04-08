@@ -435,11 +435,11 @@ async function buildForecastInsights(
   if (trend > 0.12) {
     occupancyTrendNextSlot = "up";
     occupancyTrendSummary =
-      "The campus vehicle curve rises into the next 15-minute block versus the previous one—typical of approaching peak demand.";
+      "The campus vehicle curve rises into the next 15-minute block versus the previous one - typical of approaching peak demand.";
   } else if (trend < -0.12) {
     occupancyTrendNextSlot = "down";
     occupancyTrendSummary =
-      "The curve eases into the next 15-minute block—demand is cooling compared to the prior bucket.";
+      "The curve eases into the next 15-minute block - demand is cooling compared to the prior bucket.";
   } else {
     occupancyTrendNextSlot = "steady";
     occupancyTrendSummary = "Neighboring 15-minute buckets are similar on the modeled vehicle curve.";
