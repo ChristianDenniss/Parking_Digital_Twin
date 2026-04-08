@@ -682,7 +682,8 @@ export function WhatIf() {
         <h1 className="text-2xl font-semibold text-slate-900">What-If Explorer</h1>
         <p className="text-sm text-slate-500 mt-1">
           Campus view compares lots campus-wide. My scenario contrasts your regular predicted day plan with the same plan under
-          a campus event: lot moves, minutes earlier to park, and fuller lots. Sign in required.
+          a campus event: lot moves, minutes earlier to park, and fuller lots.
+          {!token ? " Sign in to use My scenario." : ""}
         </p>
       </div>
 

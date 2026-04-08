@@ -1,8 +1,13 @@
 import { Router, Request, Response } from "express";
 import { DateTime } from "luxon";
+import { In } from "typeorm";
 import { predictSnapshot } from "../prediction/prediction.service";
 import type { EventSize, PredictionResult } from "../prediction/prediction.types";
 import { cacheMiddleware } from "../../middleware/cache";
+import { AppDataSource } from "../../db/data-source";
+import { ParkingLot } from "../parkingLots/parkingLot.entity";
+import { getParkingForecastSummary } from "../parkingSpots/parkingOccupancyAssign.service";
+import { getLotType } from "../prediction/prediction.service";
 
 const UNBSJ_TIMEZONE = "America/Moncton";
 
@@ -57,41 +62,59 @@ router.get("/", cacheMiddleware({ ttlSeconds: 120 }), async (req: Request, res: 
     );
     if (!dt.isValid) { res.status(400).json({ error: "Invalid date or time" }); return; }
 
-    const targetAt = dt.toJSDate();
     const eventSize = parseEventSize(req.query.eventSize);
     const useEnrollment = req.query.useEnrollment !== "false";
     const dayOfWeek = dt.toFormat("cccc"); // e.g. "Tuesday"
 
-    // Baseline: same useEnrollment as scenario but no event — the only variable is eventSize.
-    // When eventSize is "none" the scenario is identical to the baseline, so reuse the
-    // baseline result directly instead of running a second prediction (which would produce
-    // slightly different numbers due to independent Gaussian noise).
-    const baseline = await predictSnapshot(targetAt, { eventSize: "none", useEnrollment });
+    // Baseline should match the map forecast path exactly (deterministic snapshot).
+    const baselineForecast = await getParkingForecastSummary(dateStr, timeStr);
+    const baselineByLot = new Map(
+      baselineForecast.lots.map((l) => [l.parkingLotId, l]),
+    );
+
+    const targetAt = dt.toJSDate();
     const scenario = eventSize === "none"
-      ? baseline
+      ? []
       : await predictSnapshot(targetAt, { eventSize, useEnrollment });
+    const scenarioMap = new Map<string, PredictionResult>(
+      scenario.map((s) => [s.lotId, s]),
+    );
 
-    const baselineMap = new Map<string, PredictionResult>(baseline.map((r) => [r.lotId, r]));
+    const lotIds = eventSize === "none"
+      ? baselineForecast.lots.map((l) => l.parkingLotId)
+      : [...new Set([...baselineByLot.keys(), ...scenarioMap.keys()])];
 
-    const lots: WhatIfLotResult[] = scenario.map((s) => {
-      const b = baselineMap.get(s.lotId);
-      const baseOcc = b?.predictedOccupancyPct ?? s.predictedOccupancyPct;
-      const baseFree = b?.predictedFreeSpots ?? s.predictedFreeSpots;
+    const lots: WhatIfLotResult[] = lotIds.map((lotId) => {
+      const b = baselineByLot.get(lotId);
+      const s = scenarioMap.get(lotId);
+      const lotName = s?.lotName ?? b?.name ?? lotId;
+      const baseOcc = b?.predictedOccupancyPercent ?? s?.predictedOccupancyPct ?? 0;
+      const baseFree = b?.predictedFree ?? s?.predictedFreeSpots ?? 0;
+      const scenOcc = s?.predictedOccupancyPct ?? baseOcc;
+      const scenFree = s?.predictedFreeSpots ?? baseFree;
       return {
-        lotId: s.lotId,
-        lotName: s.lotName,
-        lotType: s.lotType,
-        baseline: { occupancyPct: baseOcc, freeSpots: baseFree, confidence: b?.confidence ?? s.confidence },
-        scenario: { occupancyPct: s.predictedOccupancyPct, freeSpots: s.predictedFreeSpots, confidence: s.confidence },
-        delta: { occupancyPct: s.predictedOccupancyPct - baseOcc, freeSpots: s.predictedFreeSpots - baseFree },
+        lotId,
+        lotName,
+        lotType: s?.lotType ?? getLotType(lotName),
+        baseline: { occupancyPct: baseOcc, freeSpots: baseFree, confidence: "deterministic" },
+        scenario: { occupancyPct: scenOcc, freeSpots: scenFree, confidence: s?.confidence ?? "deterministic" },
+        delta: { occupancyPct: scenOcc - baseOcc, freeSpots: scenFree - baseFree },
       };
     });
 
-    const totalBaselineFree = lots.reduce((s, l) => s + l.baseline.freeSpots, 0);
+    const lotRepo = AppDataSource.getRepository(ParkingLot);
+    const lotRows = lots.length > 0
+      ? await lotRepo.find({ where: { id: In(lots.map((l) => l.lotId)) }, select: ["id", "capacity"] })
+      : [];
+    const capacityByLotId = new Map(lotRows.map((r) => [r.id, r.capacity]));
+
+    const totalBaselineFree = eventSize === "none"
+      ? baselineForecast.totalSpots - baselineForecast.kTotal
+      : lots.reduce((s, l) => s + l.baseline.freeSpots, 0);
     const totalScenarioFree = lots.reduce((s, l) => s + l.scenario.freeSpots, 0);
-    const totalCapacity = lots.reduce((s, l) => s + l.baseline.freeSpots + (100 - l.baseline.occupancyPct) > 0
-      ? s + Math.round(l.baseline.freeSpots / (1 - l.baseline.occupancyPct / 100))
-      : s, 0);
+    const totalCapacity = eventSize === "none"
+      ? baselineForecast.totalSpots
+      : lots.reduce((s, l) => s + (capacityByLotId.get(l.lotId) ?? 0), 0);
 
     const response: WhatIfResponse = {
       date: dateStr,
@@ -105,7 +128,9 @@ router.get("/", cacheMiddleware({ ttlSeconds: 120 }), async (req: Request, res: 
         totalBaselineFreeSpots: totalBaselineFree,
         totalScenarioFreeSpots: totalScenarioFree,
         totalCapacity,
-        baselineOccupancyPct: totalCapacity > 0 ? Math.round((1 - totalBaselineFree / totalCapacity) * 100) : 0,
+        baselineOccupancyPct: eventSize === "none"
+          ? baselineForecast.campusPredictedOccupancyPercent
+          : totalCapacity > 0 ? Math.round((1 - totalBaselineFree / totalCapacity) * 100) : 0,
         scenarioOccupancyPct: totalCapacity > 0 ? Math.round((1 - totalScenarioFree / totalCapacity) * 100) : 0,
       },
     };
