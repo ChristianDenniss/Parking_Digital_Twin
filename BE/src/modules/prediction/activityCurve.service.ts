@@ -11,7 +11,7 @@ import { Course } from "../classes/course.entity";
 import { LotBuildingDistance } from "../buildings/lotBuildingDistance.entity";
 import { hasPlausibleMeetingTimes } from "../classes/courseMeetingTime.util";
 import { DEFAULT_ARRIVAL_PLAN_TERM_CODE, normalizeArrivalTermCode } from "../../utils/arrivalPlanTerms";
-import { getDemandMultiplier } from "../campusParameters/campusParameter.service";
+import { getDemandMultiplier } from "./campusParameter.service";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

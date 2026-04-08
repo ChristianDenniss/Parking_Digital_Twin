@@ -34,6 +34,6 @@ export class LotOccupancyCorrection {
   @Column("integer")
   nSamples!: number;
 
-  @UpdateDateColumn({ type: "datetime" })
+  @UpdateDateColumn()
   updatedAt!: Date;
 }

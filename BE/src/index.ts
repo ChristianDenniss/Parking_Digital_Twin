@@ -22,7 +22,7 @@ import userRoute from "./modules/users/user.route";
 import earthEngineRoute from "./modules/earthEngine/earthEngine.route";
 import predictionRoute from "./modules/prediction/prediction.route";
 import whatIfRoute from "./modules/whatif/whatif.route";
-import * as campusParameterService from "./modules/campusParameters/campusParameter.service";
+import * as campusParameterService from "./modules/prediction/campusParameter.service";
 
 const PORT = process.env.PORT || 3000;
 

@@ -383,7 +383,7 @@ add_body(
     "The implementation plan (Step 0) called for a single BE/src/config/demandParameters.ts "
     "to centralise all constants from the assumption documents. This file does not exist. "
     "Carpool rates, absence rates, and effective driver rates are hardcoded defaults in the "
-    "CampusParameters service with no single place to audit all downstream effects."
+    "campusParameter.service (under prediction) with no single place to audit all downstream effects."
 )
 
 add_h3("No database migrations — synchronize: true in production")
@@ -410,9 +410,10 @@ add_body(
 
 add_h3("Campus Parameters have no HTTP routes")
 add_body(
-    "The campusParameters module has an entity and service but no controller or route is "
-    "registered. Behavioural parameters can only be changed by direct database access or by "
-    "reseeding — no admin user can adjust them at runtime without a code deployment."
+    "Under modules/prediction, campusParameter.entity.ts and campusParameter.service.ts exist "
+    "but no controller or route is registered. Behavioural parameters can only be changed by "
+    "direct database access or by reseeding — no admin user can adjust them at runtime without "
+    "a code deployment."
 )
 
 add_h3("Prediction confidence is binary, not probabilistic")
