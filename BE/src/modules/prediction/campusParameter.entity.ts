@@ -23,6 +23,6 @@ export class CampusParameter {
   @Column({ type: "text", nullable: true })
   description!: string | null;
 
-  @UpdateDateColumn({ type: "datetime" })
+  @UpdateDateColumn()
   updatedAt!: Date;
 }

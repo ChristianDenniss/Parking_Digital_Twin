@@ -2,60 +2,60 @@ openapi: 3.0.3
 info:
   title: UNB Parking Digital Twin API
   description: >
-    Backend API for the UNB Saint John campus parking lot digital twin (MVP).
-    Includes JWT auth, user profiles (role, resident, accessible parking), class schedule,
-    lot-building distances, parking recommendations, full-day arrival plans with per-segment
-    scenario clocks for the map, Moncton-time occupancy snapshots (apply-scenario / apply-live),
-    simulator play/pause and live vs scenario map mode, Earth Engine map tiles and campus section GeoJSON,
-    and optional Redis-backed response caching (health endpoint).
-  version: 0.3.0
+    Contract for the UNB Saint John parking digital twin **as used by the web app** (React client),
+    plus operational endpoints (health, Redis cache status) and the Earth Engine tile proxy used by the map.
+    The backend still exposes additional admin/data routes (e.g. CRUD for buildings, students, historical proxy
+    rows, JSON prediction endpoints under `/api/prediction`); those are intentionally omitted here.
+  version: 0.4.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
 
 servers:
   - url: http://localhost:3000
     description: Local development
 
+# Default: no auth. Override with `security: [bearerAuth: []]` where JWT is required.
+security:
+  - {}
+
 tags:
   - name: Health
-    description: Service liveness.
+    description: Liveness and service identity.
   - name: Cache
-    description: Optional Redis cache status (when REDIS_URL is set).
+    description: Optional Redis cache status.
   - name: Earth Engine
-    description: Google Earth Engine imagery and map tiles.
+    description: Map imagery and campus section GeoJSON.
   - name: Parking lots
-    description: Parking lot metadata and capacities.
+    description: Lots, forecast, and recommendations.
   - name: Parking spots
-    description: Individual parking spots and their status.
-  - name: Parking spot logs
-    description: Time-series logs of parking spot status changes.
-  - name: Historical
-    description: Historical parking and sensor proxy data.
-  - name: Students
-    description: Student records for class scheduling demonstrations.
-  - name: Classes
-    description: Class/course catalog.
-  - name: Class schedule
-    description: Class schedule entries (enrollments).
-  - name: Buildings
-    description: Campus buildings and lot-building walking distances.
-  - name: Users
-    description: API users and auth-related endpoints.
-  - name: Auth
-    description: Registration and login (JWT).
+    description: Spot listing and occupancy apply endpoints.
   - name: Simulator
-    description: >
-      In-process parking simulator flags: paused vs running ticks, and live Moncton clock vs fixed scenario instant.
-      Successful POST /api/parking-spots/apply-scenario updates these flags; apply-live switches back to live.
+    description: In-process simulator flags for map mode.
+  - name: Parking spot logs
+    description: Historical spot status changes.
+  - name: Classes
+    description: Course catalog.
+  - name: Class schedule
+    description: Student enrollments.
+  - name: Buildings
+    description: Campus buildings and map markers.
+  - name: Auth
+    description: Register and login.
+  - name: Users
+    description: Current user profile and schedule.
+  - name: What-if
+    description: Event impact vs baseline occupancy.
 
 paths:
   /api/health:
     get:
-      tags:
-        - Health
+      tags: [Health]
       summary: Health check
       operationId: getHealth
       responses:
         "200":
-          description: Service is healthy
+          description: OK
           content:
             application/json:
               schema:
@@ -63,22 +63,18 @@ paths:
 
   /api/cache/health:
     get:
-      tags:
-        - Cache
+      tags: [Cache]
       summary: Redis cache connectivity and stats
-      description: >
-        Returns whether the optional Redis client is connected (`healthy`) and basic stats.
-        When `REDIS_URL` is unset, `healthy` is false and caching middleware no-ops.
       operationId: getCacheHealth
       responses:
         "200":
-          description: Health check completed (may report unhealthy Redis)
+          description: Completed (may report unhealthy Redis)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CacheHealthResponse"
         "500":
-          description: Error while querying cache layer
+          description: Error querying cache layer
           content:
             application/json:
               schema:
@@ -86,12 +82,8 @@ paths:
 
   /api/earth-engine/sections:
     get:
-      tags:
-        - Earth Engine
+      tags: [Earth Engine]
       summary: Parking section polygons (GeoJSON)
-      description: >
-        Returns a GeoJSON FeatureCollection of campus parking section boundaries used on the map
-        for hover labels and click-to-lot navigation. Feature `properties.name` identifies the section.
       operationId: getEarthEngineSections
       responses:
         "200":
@@ -100,7 +92,6 @@ paths:
             application/json:
               schema:
                 type: object
-                description: GeoJSON FeatureCollection
         "502":
           description: Earth Engine or asset error
           content:
@@ -110,21 +101,18 @@ paths:
 
   /api/earth-engine/tiles:
     get:
-      tags:
-        - Earth Engine
-      summary: Earth Engine tile URL template for TileLayer
-      description: Returns a URL template for map tiles. Use in TileLayer (e.g. Leaflet). Tiles are proxied through the backend; no token is exposed. Default asset "unbsj" is UNBSJ image + parking sections.
+      tags: [Earth Engine]
+      summary: Earth Engine tile URL template
       operationId: getEarthEngineTileUrl
       parameters:
         - name: asset
           in: query
-          description: Layer/asset (default unbsj)
           schema:
             type: string
             default: unbsj
       responses:
         "200":
-          description: Tile URL template
+          description: Tile URL template for Leaflet
           content:
             application/json:
               schema:
@@ -133,51 +121,38 @@ paths:
                 properties:
                   tileUrl:
                     type: string
-                    example: "/api/earth-engine/tiles/{z}/{x}/{y}?asset=unbsj"
 
   /api/earth-engine/tiles/{z}/{x}/{y}:
     get:
-      tags:
-        - Earth Engine
-      summary: Earth Engine tile (proxied; mapid/token stay on server)
-      description: Returns a single map tile image. Use as tile URL in map libraries so the client never sees GEE credentials. Optional auth middleware can be applied to this route.
+      tags: [Earth Engine]
+      summary: Proxied map tile (PNG)
       operationId: getEarthEngineTile
       parameters:
         - name: z
           in: path
           required: true
-          description: Zoom level
-          schema:
-            type: integer
+          schema: { type: integer }
         - name: x
           in: path
           required: true
-          description: Tile X
-          schema:
-            type: integer
+          schema: { type: integer }
         - name: y
           in: path
           required: true
-          description: Tile Y
-          schema:
-            type: integer
+          schema: { type: integer }
         - name: asset
           in: query
           required: true
-          description: GEE asset ID (e.g. USGS/SRTMGL1_003)
-          schema:
-            type: string
+          schema: { type: string }
         - name: min
           in: query
-          schema:
-            type: number
+          schema: { type: number }
         - name: max
           in: query
-          schema:
-            type: number
+          schema: { type: number }
       responses:
         "200":
-          description: Tile image (PNG)
+          description: PNG tile
           content:
             image/png:
               schema:
@@ -190,20 +165,19 @@ paths:
 
   /api/parking-lots:
     get:
-      tags:
-        - Parking lots
-      summary: List all parking lots (or lots with distance/occupancy for a building)
+      tags: [Parking lots]
+      summary: List parking lots (optional distance/occupancy per building)
       operationId: listParkingLots
       parameters:
         - name: buildingId
           in: query
-          description: When provided, returns lots with distance and occupancy for this building (sorted by distance then availability)
+          description: When set, each lot includes distanceMeters, freeSpots, occupancyPercent (sorted by distance).
           schema:
             type: string
             format: uuid
       responses:
         "200":
-          description: List of parking lots. With buildingId, each item includes distanceMeters, freeSpots, occupancyPercent.
+          description: Lots (plain or with distance fields)
           content:
             application/json:
               schema:
@@ -212,38 +186,35 @@ paths:
                   oneOf:
                     - $ref: "#/components/schemas/ParkingLot"
                     - $ref: "#/components/schemas/ParkingLotWithDistance"
-    post:
-      tags:
-        - Parking lots
-      summary: Create a parking lot
-      operationId: createParkingLot
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateParkingLot"
+
+  /api/parking-lots/forecast:
+    get:
+      tags: [Parking lots]
+      summary: Campus parking forecast for a date/time (Moncton-local; defaults to now)
+      operationId: getParkingLotsForecast
+      parameters:
+        - name: date
+          in: query
+          description: YYYY-MM-DD
+          schema: { type: string }
+        - name: time
+          in: query
+          description: HH:mm
+          schema: { type: string }
       responses:
-        "201":
-          description: Created
+        "200":
+          description: Forecast payload
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ParkingLot"
+                $ref: "#/components/schemas/ParkingForecastResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
 
   /api/parking-lots/recommendation:
     post:
-      tags:
-        - Parking lots
-      summary: Recommend closest eligible lot with availability and a spot inside it
-      description: >
-        Ranks lots by walking distance to the building, drops lots the caller is not allowed to use (staff-only,
-        resident-only, PhD-only are inferred from lot names such as StaffParking1, ResidentParking2, PHDParking1),
-        then picks the nearest remaining lot with at least one empty spot and returns the first suitable spot in that lot.
-        Optional Bearer token: when present, role and resident flag from the user profile drive eligibility; when absent,
-        eligibility defaults to a non-resident student (general/timed lots only). Use stateMode "predicted" with optional override maps for future models.
+      tags: [Parking lots]
+      summary: Recommend closest eligible lot and spot for a building
       operationId: recommendParking
       security:
         - {}
@@ -256,7 +227,7 @@ paths:
               $ref: "#/components/schemas/RecommendParkingRequest"
       responses:
         "200":
-          description: Recommended lot, spot, and metadata
+          description: Recommendation
           content:
             application/json:
               schema:
@@ -264,7 +235,7 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
-          description: No suitable lot/spot for this building and state
+          description: No suitable lot/spot
           content:
             application/json:
               schema:
@@ -272,9 +243,8 @@ paths:
 
   /api/parking-lots/{id}:
     get:
-      tags:
-        - Parking lots
-      summary: Get a parking lot by ID
+      tags: [Parking lots]
+      summary: Get parking lot by ID
       operationId: getParkingLotById
       parameters:
         - $ref: "#/components/parameters/IdPath"
@@ -290,20 +260,17 @@ paths:
 
   /api/parking-lots/{id}/spots:
     get:
-      tags:
-        - Parking lots
-      summary: List spots for a parking lot
+      tags: [Parking lots]
+      summary: List spots in a lot
       operationId: listParkingLotSpots
       parameters:
         - $ref: "#/components/parameters/IdPath"
         - name: section
           in: query
-          description: Filter by section within the lot
-          schema:
-            type: string
+          schema: { type: string }
       responses:
         "200":
-          description: List of parking spots
+          description: Spots in the lot
           content:
             application/json:
               schema:
@@ -315,57 +282,32 @@ paths:
 
   /api/parking-spots:
     get:
-      tags:
-        - Parking spots
+      tags: [Parking spots]
       summary: List parking spots
       operationId: listParkingSpots
       parameters:
         - name: parkingLotId
           in: query
-          description: Filter by parking lot ID
           schema:
             type: string
             format: uuid
         - name: section
           in: query
-          description: Filter by section within a lot (e.g. North, A, Visitor)
-          schema:
-            type: string
+          schema: { type: string }
       responses:
         "200":
-          description: List of parking spots
+          description: Parking spots
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/ParkingSpot"
-    post:
-      tags:
-        - Parking spots
-      summary: Create a parking spot
-      operationId: createParkingSpot
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateParkingSpot"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ParkingSpot"
-        "400":
-          $ref: "#/components/responses/BadRequest"
 
   /api/parking-spots/apply-scenario:
     post:
-      tags:
-        - Parking spots
-      summary: Bulk-apply occupancy snapshot for a scenario date and time (Moncton-local)
+      tags: [Parking spots]
+      summary: Apply occupancy snapshot for scenario date/time (Moncton)
       operationId: applyParkingScenario
       requestBody:
         required: true
@@ -373,127 +315,53 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - date
-                - time
+              required: [date, time]
               properties:
                 date:
                   type: string
-                  description: Calendar date YYYY-MM-DD
                   example: "2026-03-15"
                 time:
                   type: string
-                  description: Local time HH:mm (15-minute profile alignment)
                   example: "11:00"
                 deterministic:
                   type: boolean
-                  description: When true, fixed snapshot (matches day-parking preview). When false/omitted, stochastic variety for manual Pick time.
       responses:
         "200":
-          description: Counts after apply (only spots with a changed status are written; no per-spot log rows)
+          description: Apply result counts
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  updated:
-                    type: integer
-                    description: Number of parking_spots rows whose status actually changed
-                  kTotal:
-                    type: integer
-                    description: Target occupied count for the scenario
-                  totalSpots:
-                    type: integer
-                    description: Total spots evaluated
+                  updated: { type: integer }
+                  kTotal: { type: integer }
+                  totalSpots: { type: integer }
         "400":
           $ref: "#/components/responses/BadRequest"
 
   /api/parking-spots/apply-live:
     post:
-      tags:
-        - Parking spots
-      summary: Bulk-apply occupancy for “now” (Moncton) and switch simulator to live
-      description: >
-        Applies occupancy for the current Moncton instant, then sets the simulator to
-        `mapMode: live` and `paused: false` (see GET/POST /api/simulator).
+      tags: [Parking spots]
+      summary: Apply occupancy for “now” and set simulator to live
       operationId: applyParkingLive
       responses:
         "200":
-          description: Counts after apply; simulator map mode is live and unpaused
+          description: Apply result counts
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  updated:
-                    type: integer
-                    description: Number of parking_spots rows whose status actually changed
-                  kTotal:
-                    type: integer
-                    description: Target occupied count for the instant
-                  totalSpots:
-                    type: integer
-                    description: Total spots evaluated
+                  updated: { type: integer }
+                  kTotal: { type: integer }
+                  totalSpots: { type: integer }
         "400":
           $ref: "#/components/responses/BadRequest"
-
-  /api/simulator:
-    get:
-      tags:
-        - Simulator
-      summary: Parking simulator play/pause and map mode
-      operationId: getSimulatorState
-      responses:
-        "200":
-          description: Current simulator flags
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SimulatorState"
-    post:
-      tags:
-        - Simulator
-      summary: Set simulator paused and/or map mode (live vs scenario clock)
-      operationId: setSimulatorState
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SimulatorStatePatch"
-      responses:
-        "200":
-          description: Updated state
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SimulatorState"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/parking-spots/{id}:
-    get:
-      tags:
-        - Parking spots
-      summary: Get a parking spot by ID
-      operationId: getParkingSpotById
-      parameters:
-        - $ref: "#/components/parameters/IdPath"
-      responses:
-        "200":
-          description: Parking spot
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ParkingSpot"
-        "404":
-          $ref: "#/components/responses/NotFound"
 
   /api/parking-spots/{id}/status:
     patch:
-      tags:
-        - Parking spots
-      summary: Update parking spot status (occupied / empty)
+      tags: [Parking spots]
+      summary: Update spot occupied/empty
       operationId: updateParkingSpotStatus
       parameters:
         - $ref: "#/components/parameters/IdPath"
@@ -505,7 +373,7 @@ paths:
               $ref: "#/components/schemas/UpdateParkingSpotStatus"
       responses:
         "200":
-          description: Updated parking spot
+          description: Updated spot
           content:
             application/json:
               schema:
@@ -515,11 +383,42 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/simulator:
+    get:
+      tags: [Simulator]
+      summary: Simulator play/pause and map mode
+      operationId: getSimulatorState
+      responses:
+        "200":
+          description: Current simulator state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulatorState"
+    post:
+      tags: [Simulator]
+      summary: Set paused and/or map mode
+      operationId: setSimulatorState
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulatorStatePatch"
+      responses:
+        "200":
+          description: Updated simulator state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulatorState"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
   /api/parking-spot-logs:
     get:
-      tags:
-        - Parking spot logs
-      summary: List parking spot status logs
+      tags: [Parking spot logs]
+      summary: List spot status logs
       operationId: listParkingSpotLogs
       parameters:
         - name: parkingSpotId
@@ -529,7 +428,7 @@ paths:
             format: uuid
       responses:
         "200":
-          description: List of parking spot logs
+          description: Status change logs
           content:
             application/json:
               schema:
@@ -537,198 +436,25 @@ paths:
                 items:
                   $ref: "#/components/schemas/ParkingSpotLog"
 
-  /api/parking-spot-logs/{id}:
-    get:
-      tags:
-        - Parking spot logs
-      summary: Get a parking spot log by ID
-      operationId: getParkingSpotLogById
-      parameters:
-        - $ref: "#/components/parameters/IdPath"
-      responses:
-        "200":
-          description: Parking spot log
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ParkingSpotLog"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /api/historical:
-    get:
-      tags:
-        - Historical
-      summary: List historical proxy data
-      operationId: listHistorical
-      responses:
-        "200":
-          description: List of historical proxy records
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/HistoricalProxyData"
-    post:
-      tags:
-        - Historical
-      summary: Add historical proxy data (for model training)
-      operationId: createHistorical
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateHistorical"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HistoricalProxyData"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/students:
-    get:
-      tags:
-        - Students
-      summary: List all students
-      operationId: listStudents
-      responses:
-        "200":
-          description: List of students
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Student"
-    post:
-      tags:
-        - Students
-      summary: Create a student
-      operationId: createStudent
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateStudent"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Student"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/students/{id}:
-    get:
-      tags:
-        - Students
-      summary: Get a student by ID
-      operationId: getStudentById
-      parameters:
-        - $ref: "#/components/parameters/IdPath"
-      responses:
-        "200":
-          description: Student
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Student"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
   /api/classes:
     get:
-      tags:
-        - Classes
-      summary: List all classes (courses)
+      tags: [Classes]
+      summary: List courses (catalog)
       operationId: listClasses
       responses:
         "200":
-          description: List of classes
+          description: Course catalog
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/Course"
-    post:
-      tags:
-        - Classes
-      summary: Create a class (course)
-      operationId: createCourse
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateCourse"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Course"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/classes/{id}:
-    get:
-      tags:
-        - Classes
-      summary: Get a class by ID
-      operationId: getCourseById
-      parameters:
-        - $ref: "#/components/parameters/IdPath"
-      responses:
-        "200":
-          description: Class (course)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Course"
-        "404":
-          $ref: "#/components/responses/NotFound"
 
   /api/class-schedule:
-    get:
-      tags:
-        - Class schedule
-      summary: List class schedule entries (enrollments)
-      operationId: listClassSchedule
-      parameters:
-        - name: studentId
-          in: query
-          schema:
-            type: string
-            format: uuid
-        - name: classId
-          in: query
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: List of class schedule entries
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ClassSchedule"
     post:
-      tags:
-        - Class schedule
-      summary: Enroll a student in a class
+      tags: [Class schedule]
+      summary: Enroll current user’s student in a class
       operationId: createClassSchedule
       requestBody:
         required: true
@@ -738,7 +464,7 @@ paths:
               $ref: "#/components/schemas/CreateClassSchedule"
       responses:
         "201":
-          description: Created
+          description: Enrollment created
           content:
             application/json:
               schema:
@@ -747,232 +473,10 @@ paths:
           $ref: "#/components/responses/BadRequest"
 
   /api/class-schedule/{id}:
-    get:
-      tags:
-        - Class schedule
-      summary: Get a class schedule entry by ID
-      operationId: getClassScheduleById
-      parameters:
-        - $ref: "#/components/parameters/IdPath"
-      responses:
-        "200":
-          description: Class schedule entry
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ClassSchedule"
-        "404":
-          $ref: "#/components/responses/NotFound"
     delete:
-      tags:
-        - Class schedule
-      summary: Remove enrollment (drop class)
+      tags: [Class schedule]
+      summary: Drop enrollment
       operationId: deleteClassSchedule
-      parameters:
-        - $ref: "#/components/parameters/IdPath"
-      responses:
-        "204":
-          description: No content
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /api/buildings/distances/lot-building:
-    get:
-      tags:
-        - Buildings
-      summary: List lot-building distances (or get one by lot and building)
-      operationId: listLotBuildingDistances
-      parameters:
-        - name: parkingLotId
-          in: query
-          description: Filter by parking lot. If both parkingLotId and buildingId are set, returns the single distance for that pair.
-          schema:
-            type: string
-            format: uuid
-        - name: buildingId
-          in: query
-          description: Filter by building. If both parkingLotId and buildingId are set, returns the single distance for that pair.
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: List of lot-building distances (or single object when both query params provided). May include parkingLot and building relations.
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: "#/components/schemas/LotBuildingDistance"
-                  - type: array
-                    items:
-                      $ref: "#/components/schemas/LotBuildingDistance"
-        "404":
-          description: Single pair requested but not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    post:
-      tags:
-        - Buildings
-      summary: Create a lot-building distance
-      operationId: createLotBuildingDistance
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateLotBuildingDistance"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LotBuildingDistance"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "409":
-          description: Distance for this lot and building already exists
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    patch:
-      tags:
-        - Buildings
-      summary: Update a lot-building distance (by lot and building)
-      operationId: updateLotBuildingDistance
-      parameters:
-        - name: parkingLotId
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: buildingId
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateLotBuildingDistance"
-      responses:
-        "200":
-          description: Updated distance
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LotBuildingDistance"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    delete:
-      tags:
-        - Buildings
-      summary: Remove a lot-building distance
-      operationId: deleteLotBuildingDistance
-      parameters:
-        - name: parkingLotId
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: buildingId
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "204":
-          description: No content
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /api/buildings/map-markers/geojson:
-    get:
-      tags:
-        - Buildings
-      summary: Building map markers (GeoJSON)
-      description: >
-        GeoJSON FeatureCollection of Point features from Earth Engine merged with database buildings
-        (name, code, floors, coordinates). Used on the campus map like parking section polygons.
-      operationId: getBuildingMapMarkersGeoJson
-      parameters:
-        - name: debug
-          in: query
-          description: When `1` or `true`, include raw GEE properties per feature (`geeProperties`).
-          schema:
-            type: string
-      responses:
-        "200":
-          description: GeoJSON FeatureCollection of Points
-          content:
-            application/json:
-              schema:
-                type: object
-                description: GeoJSON FeatureCollection (Point features)
-        "502":
-          description: Earth Engine or merge error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /api/buildings/{id}:
-    get:
-      tags:
-        - Buildings
-      summary: Get a building by ID
-      operationId: getBuildingById
-      parameters:
-        - $ref: "#/components/parameters/IdPath"
-      responses:
-        "200":
-          description: Building
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Building"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    patch:
-      tags:
-        - Buildings
-      summary: Update a building
-      operationId: updateBuilding
-      parameters:
-        - $ref: "#/components/parameters/IdPath"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateBuilding"
-      responses:
-        "200":
-          description: Updated building
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Building"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    delete:
-      tags:
-        - Buildings
-      summary: Delete a building
-      operationId: deleteBuilding
       parameters:
         - $ref: "#/components/parameters/IdPath"
       responses:
@@ -983,45 +487,46 @@ paths:
 
   /api/buildings:
     get:
-      tags:
-        - Buildings
-      summary: List all buildings
+      tags: [Buildings]
+      summary: List buildings
       operationId: listBuildings
       responses:
         "200":
-          description: List of campus buildings
+          description: Campus buildings
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/Building"
-    post:
-      tags:
-        - Buildings
-      summary: Create a building
-      operationId: createBuilding
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateBuilding"
+
+  /api/buildings/map-markers/geojson:
+    get:
+      tags: [Buildings]
+      summary: Building markers (GeoJSON Points)
+      operationId: getBuildingMapMarkersGeoJson
+      parameters:
+        - name: debug
+          in: query
+          schema: { type: string }
       responses:
-        "201":
-          description: Created
+        "200":
+          description: GeoJSON FeatureCollection of building points
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Building"
-        "400":
-          $ref: "#/components/responses/BadRequest"
+                type: object
+        "502":
+          description: Earth Engine or merge error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/auth/register:
     post:
-      tags:
-        - Auth
-      summary: Register a new user
+      tags: [Auth]
+      summary: Register
       operationId: register
       requestBody:
         required: true
@@ -1031,7 +536,7 @@ paths:
               $ref: "#/components/schemas/RegisterRequest"
       responses:
         "201":
-          description: User created
+          description: Registration successful
           content:
             application/json:
               schema:
@@ -1041,9 +546,8 @@ paths:
 
   /api/auth/login:
     post:
-      tags:
-        - Auth
-      summary: Log in (returns JWT)
+      tags: [Auth]
+      summary: Login (JWT)
       operationId: login
       requestBody:
         required: true
@@ -1053,41 +557,24 @@ paths:
               $ref: "#/components/schemas/LoginRequest"
       responses:
         "200":
-          description: Success
+          description: Login successful; returns JWT
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthResponse"
         "401":
-          description: Invalid email or password
-
-  /api/users:
-    get:
-      tags:
-        - Users
-      summary: List all users
-      operationId: listUsers
-      responses:
-        "200":
-          description: List of users (public fields only)
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/User"
+          description: Invalid credentials
 
   /api/users/me:
     get:
-      tags:
-        - Users
-      summary: Get current user and linked student
+      tags: [Users]
+      summary: Current user (+ linked student)
       operationId: getMe
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: Current user with student profile if linked
+          description: Current user profile
           content:
             application/json:
               schema:
@@ -1095,14 +582,8 @@ paths:
         "401":
           description: Not authenticated
     patch:
-      tags:
-        - Users
-      summary: Update current user profile (no password)
-      description: >
-        Update name, email, role, resident flag, accessible/disabled parking flag, and optionally link a student profile.
-        Changing role does not remove a linked student profile or class schedule; staff and PhD may keep the same
-        enrollment record. Switching to student or PhD candidate without a linked student requires `studentId` in the
-        body. At least one field must be provided.
+      tags: [Users]
+      summary: Update current user profile
       operationId: patchMe
       security:
         - bearerAuth: []
@@ -1114,7 +595,7 @@ paths:
               $ref: "#/components/schemas/PatchMeRequest"
       responses:
         "200":
-          description: Updated user (same shape as GET /api/users/me)
+          description: Updated profile
           content:
             application/json:
               schema:
@@ -1128,18 +609,8 @@ paths:
 
   /api/users/me/arrival-recommendation:
     get:
-      tags:
-        - Users
-      summary: Full-day parking plan for a calendar date
-      description: >
-        For the given local calendar `date`, uses only courses whose `term` matches the configured term(s)
-        (default `2026/WI`, Winter 2026). Those classes are treated as meeting that day (until weekdays exist on
-        schedule rows). Classes are sorted by start time. The first segment recommends when to arrive and where to
-        park for the first class. Between consecutive classes, if the gap from the previous class end to the next
-        start is greater than 60 minutes, a return-and-park segment recommends a fresh lot/spot and arrival time for
-        the next class (assumes you left campus). Otherwise a stay-on-campus segment is emitted.
-        Each `initial_arrival` and `return_and_park` segment includes `occupancyScenario` (`dateYmd`, `timeHHmm`)
-        aligned to Moncton local time for POST /api/parking-spots/apply-scenario so the map matches that step.
+      tags: [Users]
+      summary: Full-day arrival plan for a calendar date
       operationId: getMyArrivalRecommendation
       security:
         - bearerAuth: []
@@ -1150,17 +621,28 @@ paths:
           schema:
             type: string
             format: date
-            example: "2026-03-19"
-          description: Local calendar day (YYYY-MM-DD).
+        - name: stateMode
+          in: query
+          description: current (live occupancy) or predicted
+          schema:
+            type: string
+            enum: [current, predicted]
+            default: current
+        - name: eventSize
+          in: query
+          schema:
+            type: string
+            enum: [none, small, medium, large]
+            default: none
       responses:
         "200":
-          description: Ordered segments for the day (initial arrival, then stay or return between classes)
+          description: Day arrival plan
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/DayArrivalPlanResponse"
         "400":
-          description: Missing or invalid date query parameter
+          description: Invalid or missing parameters
           content:
             application/json:
               schema:
@@ -1168,7 +650,7 @@ paths:
         "401":
           description: Not authenticated
         "404":
-          description: No student profile, no suitable classes that day, unmatched building, or no parking recommendation
+          description: Could not build a plan for this user/date
           content:
             application/json:
               schema:
@@ -1176,18 +658,14 @@ paths:
 
   /api/users/me/schedule:
     get:
-      tags:
-        - Users
-      summary: Get class schedule for current user's student
-      description: >
-        Returns all enrolled sections (including courses with placeholder times such as thesis blocks). Day parking
-        recommendations ignore implausible meeting times; the schedule list does not.
+      tags: [Users]
+      summary: Enrolled sections for the linked student
       operationId: getMySchedule
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: List of schedule entries with embedded course details (empty if no student linked)
+          description: Schedule rows with embedded courses
           content:
             application/json:
               schema:
@@ -1197,58 +675,36 @@ paths:
         "401":
           description: Not authenticated
 
-  /api/users/{id}:
+  /api/what-if:
     get:
-      tags:
-        - Users
-      summary: Get a user by ID
-      operationId: getUserById
-      parameters:
-        - $ref: "#/components/parameters/IdPath"
+      tags: [What-if]
+      summary: Campus-wide baseline vs event scenario (optional auth)
+      description: >
+        Query params `date`, `time`, `eventSize` (none|small|medium|large), `useEnrollment` (default true).
+        Defaults to current Moncton date/time when omitted.
+      operationId: getWhatIf
+      security:
+        - {}
+        - bearerAuth: []
       responses:
         "200":
-          description: User (public fields only)
+          description: Baseline vs scenario snapshot
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    patch:
-      tags:
-        - Users
-      summary: Update a user
-      operationId: updateUser
-      parameters:
-        - $ref: "#/components/parameters/IdPath"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateUser"
-      responses:
-        "200":
-          description: Updated user
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/User"
+                $ref: "#/components/schemas/WhatIfResponse"
         "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    delete:
-      tags:
-        - Users
-      summary: Delete a user
-      operationId: deleteUser
-      parameters:
-        - $ref: "#/components/parameters/IdPath"
-      responses:
-        "204":
-          description: No content
-        "404":
-          $ref: "#/components/responses/NotFound"
+          description: Invalid date or time
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
 components:
   securitySchemes:
@@ -1274,7 +730,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     NotFound:
-      description: Resource not found
+      description: Not found
       content:
         application/json:
           schema:
@@ -1284,138 +740,78 @@ components:
     Health:
       type: object
       properties:
-        ok:
-          type: boolean
-        service:
-          type: string
-          example: unb-parking-twin-be
+        ok: { type: boolean }
+        service: { type: string }
 
     CacheHealthResponse:
       type: object
       properties:
-        healthy:
-          type: boolean
-          description: True when Redis is enabled and PING returned PONG
+        healthy: { type: boolean }
         stats:
           type: object
           properties:
-            enabled:
-              type: boolean
-              description: Whether REDIS_URL was set and client connected
-            redisUrl:
-              type: string
-              nullable: true
-              description: Configured Redis URL (null when disabled)
-        timestamp:
-          type: string
-          format: date-time
+            enabled: { type: boolean }
+            redisUrl: { type: string, nullable: true }
+        timestamp: { type: string, format: date-time }
 
     CacheHealthErrorResponse:
       type: object
       properties:
-        healthy:
-          type: boolean
-          example: false
-        error:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
+        healthy: { type: boolean, example: false }
+        error: { type: string }
+        timestamp: { type: string, format: date-time }
 
     Error:
       type: object
       properties:
-        error:
-          type: string
-          description: Error message
+        error: { type: string }
 
     UserRole:
       type: string
-      description: Account type for parking eligibility
-      enum:
-        - staff
-        - student
-        - phd_candidate
+      enum: [staff, student, phd_candidate]
 
     User:
       type: object
-      description: Public user fields (no password hash)
       properties:
-        id:
-          type: string
-          format: uuid
-        email:
-          type: string
-          format: email
-        name:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-        role:
-          $ref: "#/components/schemas/UserRole"
-        resident:
-          type: boolean
-          description: Lives in UNBSJ campus residence (resident parking eligibility)
-        disabled:
-          type: boolean
-          description: Requires an accessible / disabled parking stall when recommending spots
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        role: { $ref: "#/components/schemas/UserRole" }
+        resident: { type: boolean }
+        disabled: { type: boolean }
 
     RegisterRequest:
       type: object
-      required:
-        - email
-        - password
-        - name
+      required: [email, password, name]
       properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          minLength: 8
-        name:
-          type: string
-          minLength: 1
-          description: Full name (required)
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        name: { type: string, minLength: 1 }
         role:
-          $ref: "#/components/schemas/UserRole"
+          type: string
+          enum: [staff, student, phd_candidate]
           default: student
-        resident:
-          type: boolean
-          default: false
-        disabled:
-          type: boolean
-          default: false
-          description: Accessible / disabled parking stall eligibility
+        resident: { type: boolean, default: false }
+        disabled: { type: boolean, default: false }
         studentId:
           type: string
-          description: Required when role is `student` or `phd_candidate` (omit for `staff`)
+          description: Required when role is student or phd_candidate
 
     LoginRequest:
       type: object
-      required:
-        - email
-        - password
+      required: [email, password]
       properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
+        email: { type: string, format: email }
+        password: { type: string }
 
     AuthResponse:
       type: object
       properties:
-        user:
-          $ref: "#/components/schemas/User"
-        token:
-          type: string
-          description: JWT for Authorization header
+        user: { $ref: "#/components/schemas/User" }
+        token: { type: string }
 
     MeResponse:
-      description: Current user (public fields) plus linked student profile when present
       allOf:
         - $ref: "#/components/schemas/User"
         - type: object
@@ -1424,180 +820,231 @@ components:
               nullable: true
               type: object
               properties:
-                id:
-                  type: string
-                  format: uuid
-                studentId:
-                  type: string
-                email:
-                  type: string
-                name:
-                  type: string
-                year:
-                  type: integer
-                  nullable: true
+                id: { type: string, format: uuid }
+                studentId: { type: string }
+                email: { type: string }
+                name: { type: string }
+                year: { type: integer, nullable: true }
 
     PatchMeRequest:
       type: object
-      description: At least one property must be sent. Password cannot be changed here.
+      description: At least one field required.
       properties:
-        name:
-          type: string
-          minLength: 1
-        email:
-          type: string
-          format: email
-        role:
-          $ref: "#/components/schemas/UserRole"
-        resident:
-          type: boolean
-        disabled:
-          type: boolean
-        studentId:
-          type: string
-          description: >
-            Required when your role is student or PhD candidate and no student profile is linked yet.
+        name: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        role: { $ref: "#/components/schemas/UserRole" }
+        resident: { type: boolean }
+        disabled: { type: boolean }
+        studentId: { type: string }
 
-    ArrivalClassSummary:
+    ParkingLot:
       type: object
       properties:
-        classIndex:
-          type: integer
-          description: 1-based position among classes that day
-        scheduleEntryId:
-          type: string
-          format: uuid
-        classId:
-          type: string
-          format: uuid
-        classCode:
-          type: string
-        courseName:
-          type: string
-          nullable: true
-        building:
-          type: string
-          nullable: true
-        room:
-          type: string
-          nullable: true
-        inferredFloor:
-          type: integer
-        startsAt:
-          type: string
-          format: date-time
-        endsAt:
-          type: string
-          format: date-time
+        id: { type: string, format: uuid }
+        name: { type: string }
+        campus: { type: string }
+        capacity: { type: integer, minimum: 0 }
+        imageUrl: { type: string, format: uri, nullable: true }
+        createdAt: { type: string, format: date-time }
 
-    OccupancyScenarioClock:
-      type: object
-      description: Moncton-local date and time for POST /api/parking-spots/apply-scenario (15-minute profile grid)
-      required:
-        - dateYmd
-        - timeHHmm
-      properties:
-        dateYmd:
-          type: string
-          example: "2026-03-19"
-        timeHHmm:
-          type: string
-          example: "08:45"
-
-    ArrivalParkingBlock:
-      type: object
-      properties:
-        building:
-          type: object
-          properties:
-            id:
-              type: string
-              format: uuid
-            name:
-              type: string
-            code:
-              type: string
-              nullable: true
-        parking:
-          type: object
-          properties:
-            lot:
-              $ref: "#/components/schemas/ParkingLot"
-            spot:
-              $ref: "#/components/schemas/ParkingSpot"
-            distanceMeters:
-              type: number
-            freeSpotsInSelectedLot:
-              type: integer
-            occupancyPercent:
-              type: integer
-        timing:
-          type: object
-          properties:
-            walkMinutesFromLotToBuilding:
-              type: integer
-            inBuildingNavigationMinutes:
-              type: integer
-            lotCongestionBufferMinutes:
-              type: integer
-            prepBufferMinutes:
-              type: integer
-            totalTravelMinutes:
-              type: integer
-            recommendedArriveBy:
-              type: string
-              format: date-time
-
-    DayArrivalSegment:
-      oneOf:
-        - allOf:
-            - type: object
-              required: [type, targetClass, building, parking, timing]
-              properties:
-                type:
-                  type: string
-                  enum: [initial_arrival]
-                targetClass:
-                  $ref: "#/components/schemas/ArrivalClassSummary"
-            - $ref: "#/components/schemas/ArrivalParkingBlock"
+    ParkingLotWithDistance:
+      allOf:
+        - $ref: "#/components/schemas/ParkingLot"
         - type: object
-          required:
-            - type
-            - gapMinutes
-            - previousClass
-            - nextClass
-            - previousEndsAt
-            - nextStartsAt
           properties:
-            type:
+            distanceMeters: { type: number }
+            freeSpots: { type: integer }
+            occupancyPercent: { type: number }
+
+    RecommendParkingRequest:
+      type: object
+      required: [buildingId]
+      properties:
+        buildingId: { type: string, format: uuid }
+        stateMode:
+          type: string
+          enum: [current, predicted]
+          default: current
+        predictedFreeSpotsByLotId:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        predictedSpotStatusByLotId:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
               type: string
-              enum: [stay_on_campus]
-            gapMinutes:
-              type: integer
-            previousClass:
-              $ref: "#/components/schemas/ArrivalClassSummary"
-            nextClass:
-              $ref: "#/components/schemas/ArrivalClassSummary"
-            previousEndsAt:
-              type: string
-              format: date-time
-            nextStartsAt:
-              type: string
-              format: date-time
-        - allOf:
-            - type: object
-              required: [type, gapAfterPreviousClassMinutes, targetClass, occupancyScenario]
-              properties:
-                type:
-                  type: string
-                  enum: [return_and_park]
-                gapAfterPreviousClassMinutes:
-                  type: integer
-                targetClass:
-                  $ref: "#/components/schemas/ArrivalClassSummary"
-                occupancyScenario:
-                  $ref: "#/components/schemas/OccupancyScenarioClock"
-            - $ref: "#/components/schemas/ArrivalParkingBlock"
+              enum: [empty, occupied]
+
+    ParkingRecommendationResponse:
+      type: object
+      properties:
+        lot: { $ref: "#/components/schemas/ParkingLot" }
+        spot: { $ref: "#/components/schemas/ParkingSpot" }
+        distanceMeters: { type: number }
+        freeSpotsInSelectedLot: { type: integer }
+        occupancyPercent: { type: integer }
+        evaluatedMode:
+          type: string
+          enum: [current, predicted]
+
+    ParkingForecastLotRow:
+      type: object
+      properties:
+        parkingLotId: { type: string }
+        name: { type: string }
+        spotCount: { type: integer }
+        predictedOccupied: { type: integer }
+        predictedFree: { type: integer }
+        predictedOccupancyPercent: { type: number }
+
+    ParkingForecastInsights:
+      type: object
+      description: Diagnostic fields for the forecast panel; may grow over time.
+      additionalProperties: true
+
+    ParkingForecastResponse:
+      type: object
+      properties:
+        date: { type: string }
+        time: { type: string }
+        timezone: { type: string }
+        signalSource:
+          type: string
+          enum: [heuristic_profile, data_driven_model]
+        modelNote: { type: string }
+        campusPredictedOccupancyPercent: { type: number }
+        kTotal: { type: integer }
+        totalSpots: { type: integer }
+        lots:
+          type: array
+          items: { $ref: "#/components/schemas/ParkingForecastLotRow" }
+        insights: { $ref: "#/components/schemas/ParkingForecastInsights" }
+
+    SimulatorState:
+      type: object
+      properties:
+        paused: { type: boolean }
+        mapMode:
+          type: string
+          enum: [live, scenario]
+        scenarioDate: { type: string, nullable: true }
+        scenarioTime: { type: string, nullable: true }
+
+    SimulatorStatePatch:
+      type: object
+      properties:
+        paused: { type: boolean }
+        mapMode:
+          type: string
+          enum: [live, scenario]
+        scenarioDate: { type: string, nullable: true }
+        scenarioTime: { type: string, nullable: true }
+
+    ParkingSpot:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        parkingLotId: { type: string, format: uuid }
+        label: { type: string }
+        section: { type: string }
+        row: { type: string }
+        index: { type: integer }
+        slotIndex: { type: integer, nullable: true }
+        distanceFromExit: { type: number, nullable: true }
+        isAccessible: { type: boolean }
+        currentStatus:
+          type: string
+          enum: [occupied, empty]
+        updatedAt: { type: string, format: date-time }
+
+    UpdateParkingSpotStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [occupied, empty]
+
+    ParkingSpotLog:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        parkingSpotId: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [occupied, empty]
+        recordedAt: { type: string, format: date-time }
+        parkingSpot:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            label: { type: string }
+
+    Course:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        classCode: { type: string }
+        startTime: { type: string }
+        endTime: { type: string }
+        name: { type: string, nullable: true }
+        term: { type: string, nullable: true }
+        building: { type: string, nullable: true }
+        room: { type: string, nullable: true }
+        sectionCode: { type: string, nullable: true }
+        enrolled: { type: integer, nullable: true }
+        capacity: { type: integer, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    ClassSchedule:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        classId: { type: string, format: uuid }
+        term: { type: string, nullable: true }
+        section: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    CreateClassSchedule:
+      type: object
+      required: [studentId, classId]
+      properties:
+        studentId: { type: string, format: uuid }
+        classId: { type: string, format: uuid }
+        term: { type: string, nullable: true }
+        section: { type: string, nullable: true }
+
+    ScheduleEntryWithCourse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        classId: { type: string, format: uuid }
+        term: { type: string, nullable: true }
+        section: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        course:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Course"
+        studentsEnrolled: { type: integer }
+
+    Building:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        code: { type: string, nullable: true }
+        floors: { type: integer, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    EventSize:
+      type: string
+      enum: [none, small, medium, large]
 
     DayArrivalPlanResponse:
       type: object
@@ -1608,598 +1055,77 @@ components:
         - gapMinutesAssumeLeftCampus
         - segments
         - assumptions
+        - predictionMode
+        - eventSize
+        - forecastedAt
+        - forecastHorizonMinutes
       properties:
-        selectedDate:
-          type: string
-          example: "2026-03-19"
+        selectedDate: { type: string }
         includedTermCodes:
           type: array
-          items:
-            type: string
-          description: Catalog term codes included in the plan (default Winter 2026 → 2026/WI)
-          example: ["2026/WI"]
-        scheduleNote:
-          type: string
-        gapMinutesAssumeLeftCampus:
-          type: integer
-          description: Gaps longer than this (previous class end → next start) trigger return-and-park
+          items: { type: string }
+        scheduleNote: { type: string }
+        gapMinutesAssumeLeftCampus: { type: integer }
         segments:
           type: array
           items:
-            $ref: "#/components/schemas/DayArrivalSegment"
+            type: object
+            description: Discriminated union (initial_arrival | stay_on_campus | return_and_park)
         assumptions:
           type: object
           properties:
-            walkMetersPerMinute:
-              type: number
-            minutesPerFloor:
-              type: number
-            congestionModel:
-              type: string
+            walkMetersPerMinute: { type: number }
+            minutesPerFloor: { type: number }
+            congestionModel: { type: string }
+        noClassesOnDay: { type: boolean }
+        predictionMode:
+          type: string
+          enum: [current, predicted]
+        eventSize: { $ref: "#/components/schemas/EventSize" }
+        forecastedAt: { type: string, nullable: true }
+        forecastHorizonMinutes: { type: integer, nullable: true }
 
-    UpdateUser:
+    WhatIfLotResult:
       type: object
       properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          minLength: 8
-        name:
-          type: string
-          nullable: true
-        role:
-          $ref: "#/components/schemas/UserRole"
-        resident:
-          type: boolean
-        disabled:
-          type: boolean
-
-    ParkingLot:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-        campus:
-          type: string
-          example: UNB Saint John
-        capacity:
-          type: integer
-          minimum: 0
-        imageUrl:
-          type: string
-          format: uri
-          nullable: true
-          description: Public URL of an image representing the parking lot
-        createdAt:
-          type: string
-          format: date-time
-
-    CreateParkingLot:
-      type: object
-      required:
-        - name
-        - capacity
-      properties:
-        name:
-          type: string
-          minLength: 1
-        capacity:
-          type: integer
-          minimum: 0
-        campus:
-          type: string
-        imageUrl:
-          type: string
-          format: uri
-          nullable: true
-          description: Public URL of an image representing the parking lot
-
-    ParkingLotWithDistance:
-      description: Parking lot with distance and occupancy when requested by building (e.g. GET /api/parking-lots?buildingId=...)
-      allOf:
-        - $ref: "#/components/schemas/ParkingLot"
-        - type: object
+        lotId: { type: string }
+        lotName: { type: string }
+        lotType: { type: string }
+        baseline:
+          type: object
           properties:
-            distanceMeters:
-              type: number
-              description: Walking distance from the building to this lot (meters)
-            freeSpots:
-              type: integer
-              description: Number of empty spots
-            occupancyPercent:
-              type: number
-              minimum: 0
-              maximum: 100
-              description: Occupancy percentage
-
-    RecommendParkingRequest:
-      type: object
-      required:
-        - buildingId
-      properties:
-        buildingId:
-          type: string
-          format: uuid
-        stateMode:
-          type: string
-          enum: [current, predicted]
-          default: current
-        predictedFreeSpotsByLotId:
+            occupancyPct: { type: number }
+            freeSpots: { type: integer }
+            confidence: { type: string }
+        scenario:
           type: object
-          additionalProperties:
-            type: integer
-            minimum: 0
-          description: Map of parking lot UUID to predicted free spot count (predicted mode)
-        predictedSpotStatusByLotId:
+          properties:
+            occupancyPct: { type: number }
+            freeSpots: { type: integer }
+            confidence: { type: string }
+        delta:
           type: object
-          additionalProperties:
-            type: object
-            additionalProperties:
-              type: string
-              enum: [empty, occupied]
-          description: Map of lot UUID to map of spot UUID to predicted status
+          properties:
+            occupancyPct: { type: number }
+            freeSpots: { type: integer }
 
-    ParkingRecommendationResponse:
+    WhatIfResponse:
       type: object
       properties:
-        lot:
-          $ref: "#/components/schemas/ParkingLot"
-        spot:
-          $ref: "#/components/schemas/ParkingSpot"
-        distanceMeters:
-          type: number
-        freeSpotsInSelectedLot:
-          type: integer
-        occupancyPercent:
-          type: integer
-          description: Approximate lot fullness (0–100) from capacity and free count for the evaluated mode
-        evaluatedMode:
-          type: string
-          enum: [current, predicted]
-
-    SimulatorState:
-      type: object
-      properties:
-        paused:
-          type: boolean
-        mapMode:
-          type: string
-          enum: [live, scenario]
-        scenarioDate:
-          type: string
-          nullable: true
-          description: Last applied scenario date YYYY-MM-DD
-        scenarioTime:
-          type: string
-          nullable: true
-          description: Last applied scenario time HH:mm
-
-    SimulatorStatePatch:
-      type: object
-      properties:
-        paused:
-          type: boolean
-        mapMode:
-          type: string
-          enum: [live, scenario]
-        scenarioDate:
-          type: string
-          nullable: true
-        scenarioTime:
-          type: string
-          nullable: true
-
-    ParkingSpot:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        parkingLotId:
-          type: string
-          format: uuid
-        label:
-          type: string
-        section:
-          type: string
-          description: Section within the lot (e.g. North, A, Visitor)
-        row:
-          type: string
-        index:
-          type: integer
-        slotIndex:
-          type: integer
-          nullable: true
-          description: 1-based order in the lot SVG for heat-map mapping
-        currentStatus:
-          type: string
-          enum: [occupied, empty]
-        updatedAt:
-          type: string
-          format: date-time
-
-    CreateParkingSpot:
-      type: object
-      required:
-        - parkingLotId
-        - label
-      properties:
-        parkingLotId:
-          type: string
-          format: uuid
-        label:
-          type: string
-          minLength: 1
-        section:
-          type: string
-          description: Section within the lot
-        row:
-          type: string
-        index:
-          type: integer
-          minimum: 0
-
-    UpdateParkingSpotStatus:
-      type: object
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          enum: [occupied, empty]
-
-    ParkingSpotLog:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        parkingSpotId:
-          type: string
-          format: uuid
-        status:
-          type: string
-          enum: [occupied, empty]
-        recordedAt:
-          type: string
-          format: date-time
-
-    HistoricalProxyData:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        sourceName:
-          type: string
-        recordedAt:
-          type: string
-          format: date-time
-        occupancyPct:
-          type: number
-          minimum: 0
-          maximum: 100
-        snapshot:
+        date: { type: string }
+        time: { type: string }
+        dayOfWeek: { type: string }
+        eventSize: { $ref: "#/components/schemas/EventSize" }
+        useEnrollment: { type: boolean }
+        targetAt: { type: string }
+        lots:
+          type: array
+          items: { $ref: "#/components/schemas/WhatIfLotResult" }
+        summary:
           type: object
-          nullable: true
-        metadata:
-          type: object
-          nullable: true
-
-    CreateHistorical:
-      type: object
-      required:
-        - sourceName
-        - occupancyPct
-      properties:
-        sourceName:
-          type: string
-          minLength: 1
-        occupancyPct:
-          type: number
-          minimum: 0
-          maximum: 100
-        snapshot:
-          type: object
-          nullable: true
-        metadata:
-          type: object
-          nullable: true
-
-    Student:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        studentId:
-          type: string
-        email:
-          type: string
-          format: email
-        name:
-          type: string
-        year:
-          type: integer
-          minimum: 1
-          maximum: 10
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-
-    CreateStudent:
-      type: object
-      required:
-        - studentId
-        - email
-        - name
-      properties:
-        studentId:
-          type: string
-          minLength: 1
-        email:
-          type: string
-          format: email
-        name:
-          type: string
-          minLength: 1
-        year:
-          type: integer
-          minimum: 1
-          maximum: 10
-          nullable: true
-
-    Course:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        classCode:
-          type: string
-        startTime:
-          type: string
-        endTime:
-          type: string
-        name:
-          type: string
-          nullable: true
-        term:
-          type: string
-          nullable: true
-        building:
-          type: string
-          nullable: true
-        room:
-          type: string
-          nullable: true
-        sectionCode:
-          type: string
-          nullable: true
-          description: Section identifier (e.g. SJ01B)
-        enrolled:
-          type: integer
-          minimum: 0
-          nullable: true
-        capacity:
-          type: integer
-          minimum: 0
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-
-    CreateCourse:
-      type: object
-      required:
-        - classCode
-        - startTime
-        - endTime
-      properties:
-        classCode:
-          type: string
-          minLength: 1
-        startTime:
-          type: string
-          minLength: 1
-        endTime:
-          type: string
-          minLength: 1
-        name:
-          type: string
-          nullable: true
-        term:
-          type: string
-          nullable: true
-        building:
-          type: string
-          nullable: true
-        room:
-          type: string
-          nullable: true
-        sectionCode:
-          type: string
-          nullable: true
-        enrolled:
-          type: integer
-          minimum: 0
-          nullable: true
-        capacity:
-          type: integer
-          minimum: 0
-          nullable: true
-
-    ClassSchedule:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        studentId:
-          type: string
-          format: uuid
-        classId:
-          type: string
-          format: uuid
-        term:
-          type: string
-          nullable: true
-        section:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-
-    ScheduleEntryWithCourse:
-      description: Class schedule entry with embedded course (used by GET /api/users/me/schedule)
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        studentId:
-          type: string
-          format: uuid
-        classId:
-          type: string
-          format: uuid
-        term:
-          type: string
-          nullable: true
-        section:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-        course:
-          nullable: true
-          $ref: "#/components/schemas/Course"
-        studentsEnrolled:
-          type: integer
-          description: Count of students enrolled in this section
-
-    CreateClassSchedule:
-      type: object
-      required:
-        - studentId
-        - classId
-      properties:
-        studentId:
-          type: string
-          format: uuid
-        classId:
-          type: string
-          format: uuid
-        term:
-          type: string
-          nullable: true
-        section:
-          type: string
-          nullable: true
-
-    Building:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-        code:
-          type: string
-          nullable: true
-          description: Optional code to match course.building (e.g. Ganong Hall)
-        floors:
-          type: integer
-          minimum: 0
-          nullable: true
-          description: Number of floors
-        createdAt:
-          type: string
-          format: date-time
-
-    CreateBuilding:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-          minLength: 1
-        code:
-          type: string
-          nullable: true
-        floors:
-          type: integer
-          minimum: 0
-          nullable: true
-
-    UpdateBuilding:
-      type: object
-      properties:
-        name:
-          type: string
-          minLength: 1
-        code:
-          type: string
-          nullable: true
-        floors:
-          type: integer
-          minimum: 0
-          nullable: true
-
-    LotBuildingDistance:
-      type: object
-      description: Walking distance (meters) between a parking lot and a building
-      properties:
-        parkingLotId:
-          type: string
-          format: uuid
-        buildingId:
-          type: string
-          format: uuid
-        distanceMeters:
-          type: number
-          minimum: 0
-        parkingLot:
-          nullable: true
-          description: Present when relation is loaded (e.g. list with filter)
-          allOf:
-            - $ref: "#/components/schemas/ParkingLot"
-        building:
-          nullable: true
-          description: Present when relation is loaded
-          allOf:
-            - $ref: "#/components/schemas/Building"
-
-    CreateLotBuildingDistance:
-      type: object
-      required:
-        - parkingLotId
-        - buildingId
-        - distanceMeters
-      properties:
-        parkingLotId:
-          type: string
-          format: uuid
-        buildingId:
-          type: string
-          format: uuid
-        distanceMeters:
-          type: number
-          minimum: 0
-
-    UpdateLotBuildingDistance:
-      type: object
-      properties:
-        distanceMeters:
-          type: number
-          minimum: 0
+          properties:
+            totalBaselineFreeSpots: { type: integer }
+            totalScenarioFreeSpots: { type: integer }
+            totalCapacity: { type: integer }
+            baselineOccupancyPct: { type: integer }
+            scenarioOccupancyPct: { type: integer }

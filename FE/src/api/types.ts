@@ -85,15 +85,6 @@ export interface BuildingMapMarkerFeatureProperties {
 
 export type BuildingMapMarkersGeoJSON = FeatureCollection<Point, BuildingMapMarkerFeatureProperties>;
 
-/** Relationship table: lot ↔ building with distance in meters. */
-export interface LotBuildingDistance {
-  parkingLotId: string;
-  buildingId: string;
-  distanceMeters: number;
-  parkingLot?: ParkingLot;
-  building?: Building;
-}
-
 export type SimulatorMapMode = "live" | "scenario";
 
 export interface SimulatorState {
@@ -295,51 +286,4 @@ export interface DayArrivalPlanResponse {
   forecastHorizonMinutes: number | null;
 }
 
-// ─── Quick Recommend ─────────────────────────────────────────────────────────
-
-export interface QuickRecommendResponse {
-  mode: "current" | "predicted";
-  eventSize: EventSize;
-  authenticated: boolean;
-  lot: { id: string; name: string; campus: string; capacity: number };
-  spot: { id: string; label: string; section: string; row: string; index: number; isAccessible: boolean };
-  distanceMeters: number;
-  freeSpotsInLot: number;
-  occupancyPct: number;
-  walkMinutes: number;
-  confidence: "live" | "data-backed" | "curve-estimate";
-}
-
-// ─── Prediction API types ─────────────────────────────────────────────────────
-
-export type PredictionConfidence = "data" | "curve";
 export type EventSize = "none" | "small" | "medium" | "large";
-
-/** Single-point prediction for one lot — GET /api/prediction/lots/:id */
-export interface PredictionPoint {
-  lotId: string;
-  lotName: string;
-  lotType: string;
-  /** 0–100 */
-  predictedOccupancyPct: number;
-  predictedFreeSpots: number;
-  confidence: PredictionConfidence;
-  /** ISO — the moment being predicted */
-  targetAt: string;
-  /** ISO — when this prediction was computed */
-  forecastedAt: string;
-  event: { size: EventSize; appliedBoost: number };
-  enrollment: { applied: boolean; activityIndex: number; multiplier: number };
-}
-
-/** 24-hour occupancy profile — GET /api/prediction/lots/:id/day-profile */
-export interface DayProfile {
-  lotId: string;
-  lotName: string;
-  date: string;
-  hours: Array<{
-    hour: number;
-    predictedOccupancyPct: number;
-    confidence: PredictionConfidence;
-  }>;
-}
