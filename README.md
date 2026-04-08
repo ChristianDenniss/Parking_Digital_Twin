@@ -4,10 +4,6 @@ Digital twin of all 16 UNBSJ parking lots. Models and predicts parking demand ac
 
 **BE** is in `BE/`, **FE** is in `FE/`. API spec is in `BE/openapi.yaml`. Design and SVG export notes are in `docs/figma.md`.
 
-Slides: **`docs/CS4555.pptx`** or [open in browser](https://powerpoint.cloud.microsoft/open/onedrive/?docId=3C4EFB58D9BD8FF5%21s461b1c1356bb48909f39bbbd3c85b2db&driveId=3C4EFB58D9BD8FF5).
-
----
-
 ## Deployment
 
 | Piece | Where | Notes |
@@ -25,14 +21,14 @@ Local dev uses SQLite + the Vite proxy — no Supabase needed. `APP_MODE` defaul
 
 ## Running locally
 
-**First time only** — run the setup script to install dependencies, seed the database, and pull in historical data:
+**First time only** — install dependencies and initialize backend data:
 
 ```bash
-# Windows
-setup.bat
+# Terminal 1 (repo root)
+cd BE && npm install && npm run seed && npm run import-birmingham
 
-# Mac / Linux
-chmod +x setup.sh && ./setup.sh
+# Terminal 2 (repo root)
+cd FE && npm install
 ```
 
 Then start the servers (same as always):
@@ -51,14 +47,38 @@ Runs at **http://localhost:5173**. Start the backend first so the Vite `/api` pr
 
 ## Environment variables
 
-Copy the example files on first run (the setup script does this automatically):
+### Backend (`BE/.env`)
 
-```bash
-cp BE/.env.example BE/.env
-cp FE/.env.example FE/.env
-```
+Local dev works with defaults for most, but these are the important values:
 
-Defaults work out of the box for local development. See the example files for production and Google Earth Engine options.
+- `APP_MODE` (optional locally): defaults to local mode if not set.
+- Google Earth Engine credentials (choose one):
+  - `EARTH_ENGINE_CREDENTIALS_JSON` (full service account JSON on one line), or
+  - `BE/serviceAccount.json` file (gitignored).
+
+### Frontend (`FE/.env`)
+
+- `VITE_API_URL`: backend base URL used by the frontend (important for remote API/CORS in deployed setups).
+
+### Production environment (backend)
+
+Set these in your host (for example Fly):
+
+- `APP_MODE=production`
+- `DATABASE_CONNECTION_STRING` (or `DATABASE_URL`)
+- `CORS_ALLOWED_ORIGINS`
+- Earth Engine service account fields:
+  - `EARTH_ENGINE_TYPE`
+  - `EARTH_ENGINE_PROJECT_ID`
+  - `EARTH_ENGINE_PRIVATE_KEY_ID`
+  - `EARTH_ENGINE_PRIVATE_KEY`
+  - `EARTH_ENGINE_CLIENT_EMAIL`
+  - `EARTH_ENGINE_CLIENT_ID`
+  - `EARTH_ENGINE_AUTH_URI`
+  - `EARTH_ENGINE_TOKEN_URI`
+  - `EARTH_ENGINE_AUTH_PROVIDER_X509_CERT_URL`
+  - `EARTH_ENGINE_CLIENT_X509_CERT_URL`
+  - `EARTH_ENGINE_UNIVERSE_DOMAIN`
 
 ---
 
@@ -71,9 +91,25 @@ Map tiles require a GEE service account. Without one the map won't load but ever
 
 ---
 
+## Google Earth
+
+Google Earth was used to validate and present the mapped walking network used by the recommendation model; 192 route segments across campus (16 parking lots to 12 buildings each). It helps verify route realism, spot-check building-to-lot paths, and communicate results visually during demos.
+
+Google Earth Web Project Link:
+https://earth.google.com/web/data=MicKJQojCiExeXN6cWtCMmoxbU4zTGh3ekU0cWUwR3FiQjM0d21MRWk
+
+---
+
 ## Lot maps (SVG mini-maps)
 
 Each lot has a custom SVG in `FE/src/images/svgs/{LotName}.svg` built from satellite imagery. The seed reads `data-spot-label` attributes (e.g. `A-001`, `B-002`) and creates one `ParkingSpot` per element. Layers with `"BG"` in the name are skipped. At runtime spots are recoloured based on live status — green = free, red = occupied. See `docs/figma.md` for the Figma process and the SVG export plugin needed to preserve element IDs.
+
+---
+
+## PowerPoint / Slide Deck
+
+Project power point presentation slides are in `docs/CS4555.pptx`. Link to online file below.
+https://1drv.ms/p/c/3c4efb58d9bd8ff5/IQATHBtGu1aQSJ85u708hbLbAUKdpLPqLmQu78At_tli4VY?e=xxlmeB
 
 ---
 
