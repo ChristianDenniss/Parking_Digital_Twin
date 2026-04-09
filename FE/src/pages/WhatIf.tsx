@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { DayArrivalPlanResponse, DayArrivalSegment, EventSize, ParkingSpot } from "../api/types";
+import { logArrivalPlanDebug, logWhatIfArrivalPlans } from "../utils/parkingPlanDebugLog";
 
 const tokenKey = "parking_twin_token";
 
@@ -69,10 +70,37 @@ function recommendedDeltaMinutesEarlierScenarioVsBaseline(scenarioIso: string, b
   return Math.round((b - s) / 60000);
 }
 
+/** Same schedule step if class + parking role match (allows baseline stall vs scenario no-parking). */
+function segmentsComparableAtIndex(x: DayArrivalSegment, y: DayArrivalSegment): boolean {
+  if (x.type === y.type) return true;
+
+  const id = (s: DayArrivalSegment) =>
+    s.type === "initial_arrival" || s.type === "return_and_park" || s.type === "no_parking_available"
+      ? s.targetClass.scheduleEntryId
+      : null;
+  const step = (s: DayArrivalSegment): "initial_arrival" | "return_and_park" | null =>
+    s.type === "initial_arrival"
+      ? "initial_arrival"
+      : s.type === "return_and_park"
+        ? "return_and_park"
+        : s.type === "no_parking_available"
+          ? s.parkingStep
+          : null;
+
+  const ix = id(x);
+  const iy = id(y);
+  if (!ix || !iy || ix !== iy) return false;
+
+  const sx = step(x);
+  const sy = step(y);
+  if (sx === null || sy === null) return false;
+  return sx === sy;
+}
+
 function segmentsAlignForCompare(a: DayArrivalSegment[], b: DayArrivalSegment[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (a[i]!.type !== b[i]!.type) return false;
+    if (!segmentsComparableAtIndex(a[i]!, b[i]!)) return false;
   }
   return true;
 }
@@ -242,6 +270,111 @@ function renderWhatIfPlanSegment(
     );
   }
 
+  if (seg.type === "no_parking_available") {
+    const c = seg.targetClass;
+    const longGap = seg.parkingStep === "return_and_park";
+    const title = longGap
+      ? `Long break: stay on campus if you can (class ${c.classIndex})`
+      : `Initial arrival (class ${c.classIndex})`;
+
+    if (baselineSeg && isParkingStep(baselineSeg) && !compareMisaligned) {
+      if (longGap) {
+        return (
+          <li key={i} className="rounded-lg border border-emerald-200 bg-white overflow-hidden">
+            <div className="bg-emerald-50/90 px-4 py-2 border-b border-emerald-200/60">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-900">{title}</p>
+              <p className="text-xs text-slate-600 mt-0.5">
+                About {seg.gapAfterPreviousClassMinutes ?? "—"} minutes between classes. Comparing a regular day with this
+                event.
+              </p>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="rounded-md border border-slate-200 bg-slate-50/90 p-3 space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Regular day (no event)</p>
+                <p className="text-sm text-slate-700">
+                  On a regular day, a break this long is treated as a window where you might leave campus. The plan would
+                  recommend a <strong>return-by</strong> time, a <strong>lot</strong>, and a <strong>suggested stall</strong>{" "}
+                  so you can reach your next class on time.
+                </p>
+              </div>
+              <div className="rounded-md border border-amber-300 bg-amber-50/90 p-3 space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-900">With this event (what-if)</p>
+                <p className="text-sm text-slate-800">{seg.message}</p>
+              </div>
+              <p className="text-sm text-slate-600">
+                {c.classCode}
+                {c.courseName ? ` - ${c.courseName}` : ""} starts at {formatLocalTime(c.startsAt)}.
+              </p>
+            </div>
+          </li>
+        );
+      }
+
+      const base = baselineSeg;
+      const baselineHref = lotHeatMapHref(base.parking.lot.id, base.parking.spot.id);
+      const arriveByLabel = seg.parkingStep === "initial_arrival" ? "Arrive by" : "Return by";
+
+      return (
+        <li key={i} className="rounded-lg border border-unb-red/30 bg-white overflow-hidden">
+          <div className="bg-unb-red/[0.06] px-4 py-2 border-b border-unb-red/15">
+            <p className="text-xs font-semibold uppercase tracking-wide text-unb-red">{title}</p>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="rounded-md border border-slate-200 bg-slate-50/90 p-3 space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Regular day (no event)</p>
+              <ParkingStepBody seg={base} arriveByLabel={arriveByLabel} />
+              <Link
+                to={baselineHref}
+                className="inline-block text-xs font-medium text-unb-red hover:underline underline-offset-2"
+              >
+                Open lot map (regular plan stall)
+              </Link>
+            </div>
+            <div className="rounded-md border border-amber-300 bg-amber-50/90 p-3 space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-900">With this event (what-if)</p>
+              <p className="text-sm text-slate-800">{seg.message}</p>
+            </div>
+            <p className="text-sm text-slate-600">
+              {c.classCode}
+              {c.courseName ? ` - ${c.courseName}` : ""} starts at {formatLocalTime(c.startsAt)}.
+            </p>
+          </div>
+        </li>
+      );
+    }
+
+    return (
+      <li
+        key={i}
+        className={
+          longGap
+            ? "rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 space-y-2"
+            : "rounded-lg border border-amber-200 bg-amber-50/70 p-4 space-y-2"
+        }
+      >
+        <p
+          className={
+            longGap
+              ? "text-xs font-semibold uppercase tracking-wide text-emerald-900"
+              : "text-xs font-semibold uppercase tracking-wide text-amber-900"
+          }
+        >
+          {title}
+        </p>
+        {longGap ? (
+          <p className="text-sm text-slate-600">
+            About {seg.gapAfterPreviousClassMinutes ?? "—"} minutes between your previous class and this one.
+          </p>
+        ) : null}
+        <p className="text-sm text-slate-800">{seg.message}</p>
+        <p className="text-sm text-slate-600">
+          {c.classCode}
+          {c.courseName ? ` - ${c.courseName}` : ""} starts at {formatLocalTime(c.startsAt)}.
+        </p>
+      </li>
+    );
+  }
+
   if (!isParkingStep(seg)) return null;
 
   const c = seg.targetClass;
@@ -249,16 +382,11 @@ function renderWhatIfPlanSegment(
     seg.type === "initial_arrival"
       ? `Initial arrival (class ${c.classIndex})`
       : `Return and park (class ${c.classIndex})`;
-  const scenarioHref = lotHeatMapHref(seg.parking.lot.id, seg.parking.spot.id);
 
   if (!baselineSeg || !isParkingStep(baselineSeg) || compareMisaligned) {
     return (
       <li key={i}>
-        <Link
-          to={scenarioHref}
-          className="block rounded-lg border border-unb-red/30 bg-unb-red/[0.07] p-4 space-y-2 transition-colors hover:border-unb-red/50 hover:bg-unb-red/[0.1] focus-visible:outline focus-visible:ring-2 focus-visible:ring-unb-red focus-visible:ring-offset-2"
-          aria-label={`Open ${seg.parking.lot.name} map and highlight spot ${spotLabelWhatIf(seg.parking.spot)}`}
-        >
+        <div className="rounded-lg border border-unb-red/30 bg-unb-red/[0.07] p-4 space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-unb-red">{title}</p>
           {seg.type === "return_and_park" ? (
             <p className="text-sm text-slate-600">
@@ -271,7 +399,7 @@ function renderWhatIfPlanSegment(
             {c.classCode}
             {c.courseName ? ` - ${c.courseName}` : ""} starts at {formatLocalTime(c.startsAt)}.
           </p>
-        </Link>
+        </div>
       </li>
     );
   }
@@ -312,12 +440,7 @@ function renderWhatIfPlanSegment(
         <div className="rounded-md border border-unb-red/35 bg-unb-red/[0.05] p-3 space-y-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-unb-red">With this event (what-if)</p>
           <ParkingStepBody seg={seg} arriveByLabel={seg.type === "initial_arrival" ? "Arrive by" : "Return by"} />
-          <Link
-            to={scenarioHref}
-            className="inline-block text-xs font-medium text-unb-red hover:underline underline-offset-2"
-          >
-            Open lot map (event scenario stall)
-          </Link>
+          <p className="text-xs text-slate-500">Event scenario is numbers-only here; use Home’s day plan to open the lot map for a chosen time.</p>
         </div>
 
         <div className="rounded-md border border-unb-red/35 bg-unb-red/5 px-3 py-2.5 text-sm text-slate-800 space-y-1.5" role="status">
@@ -537,6 +660,7 @@ function ScheduleWhatIf({ token }: { token: string | null }) {
     try {
       if (eventSize === "none") {
         const data = await fetchArrivalPlanForWhatIf(date, "none", token);
+        logArrivalPlanDebug("WhatIf·single (no event selected)", data);
         setPlan(data);
         setBaselinePlan(null);
       } else {
@@ -544,6 +668,7 @@ function ScheduleWhatIf({ token }: { token: string | null }) {
           fetchArrivalPlanForWhatIf(date, "none", token),
           fetchArrivalPlanForWhatIf(date, eventSize, token),
         ]);
+        logWhatIfArrivalPlans(base, scenario, eventSize);
         setBaselinePlan(base);
         setPlan(scenario);
       }

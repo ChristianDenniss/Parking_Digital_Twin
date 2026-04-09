@@ -252,6 +252,13 @@ export type DayArrivalSegment =
       };
       timing: ArrivalTimingBreakdown;
       occupancyScenario: OccupancyScenarioClock;
+    }
+  | {
+      type: "no_parking_available";
+      parkingStep: "initial_arrival" | "return_and_park";
+      targetClass: ArrivalClassSummary;
+      gapAfterPreviousClassMinutes?: number;
+      message: string;
     };
 
 /** POST /api/parking-lots/recommendation */

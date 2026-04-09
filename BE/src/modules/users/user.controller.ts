@@ -6,6 +6,7 @@ import * as studentService from "../students/student.service";
 import * as classScheduleService from "../classSchedule/classSchedule.service";
 import * as arrivalRecommendationService from "./arrivalRecommendation.service";
 import * as parkingLotService from "../parkingLots/parkingLot.service";
+import * as buildingService from "../buildings/building.service";
 import { predictOccupancy } from "../prediction/prediction.service";
 import type { EventSize } from "../prediction/prediction.types";
 import { createUserSchema, loginSchema, patchMeSchema, updateUserSchema } from "./user.schema";
@@ -287,17 +288,32 @@ export async function myPersonalWhatIf(req: Request, res: Response) {
     eventSize: "none",
   });
 
-  // Extract the first class's building for recommendation
-  const firstArrival = plan?.segments.find((s) => s.type === "initial_arrival");
-  if (!firstArrival || firstArrival.type !== "initial_arrival") {
+  const firstClassSeg = plan?.segments.find(
+    (s) => s.type === "initial_arrival" || s.type === "no_parking_available",
+  );
+  if (!firstClassSeg) {
     return res.status(404).json({
       error:
         "No class with a building found on this date. Your schedule needs at least one class with a building to run a personal what-if.",
       noClassesOnDay: plan?.noClassesOnDay ?? false,
     });
   }
-
-  const buildingId = firstArrival.building.id;
+  const bStr = firstClassSeg.targetClass.building?.trim();
+  if (!bStr) {
+    return res.status(404).json({
+      error:
+        "No building on the first class for this date. Add a building to the course to run a personal what-if.",
+      noClassesOnDay: plan?.noClassesOnDay ?? false,
+    });
+  }
+  const resolvedBuilding = await buildingService.findBuildingForCourseBuilding(bStr);
+  if (!resolvedBuilding) {
+    return res.status(404).json({
+      error: "Could not match the class building to a campus building for predictions.",
+      noClassesOnDay: plan?.noClassesOnDay ?? false,
+    });
+  }
+  const buildingId = resolvedBuilding.id;
 
   // Predicted free spots per lot — baseline (no event) and scenario (with event)
   const nearbyLots = await parkingLotService.findRecommendationsByBuilding(buildingId);
@@ -357,7 +373,7 @@ export async function myPersonalWhatIf(req: Request, res: Response) {
     date: dateStr,
     time,
     eventSize,
-    building: { id: firstArrival.building.id, name: firstArrival.building.name },
+    building: { id: resolvedBuilding.id, name: resolvedBuilding.name },
     baseline: formatRec(baselineRec),
     scenario: formatRec(scenarioRec),
     lotChanged,
