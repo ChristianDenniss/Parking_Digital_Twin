@@ -12,6 +12,7 @@ import type {
 } from "../api/types";
 import type { ParkingMapDataMode } from "../components/ParkingMap";
 import { ParkingForecastSection } from "../components/ParkingForecastSection";
+import { logArrivalPlanDebug } from "../utils/parkingPlanDebugLog";
 
 function formatLocalTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, {
@@ -104,7 +105,7 @@ export type HomeOutletContextValue = {
   scrollCampusMapIntoView: (behavior?: ScrollBehavior) => void;
 };
 
-const DAY_PLAN_CACHE_PREFIX = "dt_day_plan_v1";
+const DAY_PLAN_CACHE_PREFIX = "dt_day_plan_v2";
 
 /** Match BE `arrivalRecommendation.service` defaults for display-only estimates */
 const REC_WALK_METERS_PER_MINUTE = 80;
@@ -209,6 +210,7 @@ function DayParkingPlanCard(props: {
           if (raw) {
             const data = JSON.parse(raw) as DayArrivalPlanResponse;
             if (data.selectedDate === planDate) {
+              logArrivalPlanDebug("Home·sessionCache", data);
               setPlan(data);
               setPlanError(null);
               setPlanLoading(false);
@@ -245,6 +247,7 @@ function DayParkingPlanCard(props: {
       void (async () => {
         try {
           const data = await api.get<DayArrivalPlanResponse>(`/api/users/me/arrival-recommendation?${q}`, token);
+          logArrivalPlanDebug("Home·network", data);
           try {
             sessionStorage.setItem(dayPlanCacheKey(token, planDate), JSON.stringify(data));
           } catch {
@@ -437,7 +440,45 @@ function DayParkingPlanCard(props: {
         </li>
       );
     }
-    const c = seg.targetClass;
+    if (seg.type === "no_parking_available") {
+      const c = seg.targetClass;
+      const longGap = seg.parkingStep === "return_and_park";
+      const label = longGap
+        ? `Long break: stay on campus if you can (class ${c.classIndex})`
+        : `Initial arrival (class ${c.classIndex})`;
+      return (
+        <li
+          key={i}
+          className={
+            longGap
+              ? "rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 space-y-2"
+              : "rounded-lg border border-amber-200 bg-amber-50/70 p-4 space-y-2"
+          }
+        >
+          <p
+            className={
+              longGap
+                ? "text-xs font-semibold uppercase tracking-wide text-emerald-900"
+                : "text-xs font-semibold uppercase tracking-wide text-amber-900"
+            }
+          >
+            {label}
+          </p>
+          {longGap ? (
+            <p className="text-sm text-slate-600">
+              About {seg.gapAfterPreviousClassMinutes ?? "—"} minutes between your previous class and this one.
+            </p>
+          ) : null}
+          <p className="text-sm text-slate-800">{seg.message}</p>
+          <p className="text-sm text-slate-600">
+            {c.classCode}
+            {c.courseName ? ` - ${c.courseName}` : ""} starts at {formatLocalTime(c.startsAt)}.
+          </p>
+        </li>
+      );
+    }
+    if (seg.type === "return_and_park") {
+      const c = seg.targetClass;
       return (
         <li key={i}>
           <Link
@@ -453,30 +494,32 @@ function DayParkingPlanCard(props: {
             className="block rounded-lg border border-amber-200 bg-amber-50/70 p-4 space-y-2 transition-colors hover:border-amber-400 hover:bg-amber-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             aria-label={`Open ${seg.parking.lot.name} map and highlight spot ${spotLabel(seg.parking.spot)}`}
           >
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
-            Return &amp; park (class {c.classIndex})
-          </p>
-          <p className="text-sm text-slate-700">
-            Long break (~{seg.gapAfterPreviousClassMinutes} min after your previous class). If you leave
-            campus, <strong>return by</strong>{" "}
-            <span className="text-unb-red font-semibold">
-              {formatLocalTime(seg.timing.recommendedArriveBy)}
-            </span>{" "}
-            local time.
-          </p>
-          <p className="text-sm text-slate-700">
-            Park in <strong>{seg.parking.lot.name}</strong>, spot{" "}
-            <strong>{spotLabel(seg.parking.spot)}</strong> (~{Math.round(seg.parking.distanceMeters)} m to{" "}
-            {seg.building.name}
-            {c.room ? `, room ${c.room}` : ""}).
-          </p>
-          <p className="text-sm text-slate-600">
-            {c.classCode}
-            {c.courseName ? ` - ${c.courseName}` : ""} starts at {formatLocalTime(c.startsAt)}.
-          </p>
-        </Link>
-      </li>
-    );
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+              Return &amp; park (class {c.classIndex})
+            </p>
+            <p className="text-sm text-slate-700">
+              Long break (~{seg.gapAfterPreviousClassMinutes} min after your previous class). If you leave
+              campus, <strong>return by</strong>{" "}
+              <span className="text-unb-red font-semibold">
+                {formatLocalTime(seg.timing.recommendedArriveBy)}
+              </span>{" "}
+              local time.
+            </p>
+            <p className="text-sm text-slate-700">
+              Park in <strong>{seg.parking.lot.name}</strong>, spot{" "}
+              <strong>{spotLabel(seg.parking.spot)}</strong> (~{Math.round(seg.parking.distanceMeters)} m to{" "}
+              {seg.building.name}
+              {c.room ? `, room ${c.room}` : ""}).
+            </p>
+            <p className="text-sm text-slate-600">
+              {c.classCode}
+              {c.courseName ? ` - ${c.courseName}` : ""} starts at {formatLocalTime(c.startsAt)}.
+            </p>
+          </Link>
+        </li>
+      );
+    }
+    return null;
   };
 
   const buildingWalkMinutes =

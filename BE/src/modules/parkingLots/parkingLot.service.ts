@@ -125,10 +125,13 @@ export async function recommendBestParking(params: {
     return b.freeSpots - a.freeSpots;
   });
 
-  const tryPickFromList = async (
-    list: typeof eligibleRanked,
-    requireForecastShowsFree: boolean,
-  ): Promise<{
+  /**
+   * Walk lots in `list` order (closest to the building first, then forecast headroom at the same distance).
+   * For each lot: if we have a per-lot forecast count and it says 0 free, skip — try the next lot
+   * (avoids recommending a stall while the UI shows "0 free"). Otherwise require at least one
+   * snapshot/DB-empty stall. Stop at the first qualifying lot; return null only if none qualify.
+   */
+  const tryPickFromList = async (list: typeof eligibleRanked): Promise<{
     lot: ParkingLot;
     spot: ParkingSpot;
     distanceMeters: number;
@@ -158,9 +161,9 @@ export async function recommendBestParking(params: {
       const predictedSpotStatuses = params.predictedSpotStatusByLotId?.[lotId];
       const predictedLotFreeSpots = params.predictedFreeSpotsByLotId?.[lotId];
 
+      // If caller provided scenario/forecast free-counts, never pick a lot marked as full there.
       if (
-        requireForecastShowsFree &&
-        params.stateMode === "predicted" &&
+        params.predictedFreeSpotsByLotId != null &&
         predictedLotFreeSpots != null &&
         predictedLotFreeSpots <= 0
       ) {
@@ -168,7 +171,8 @@ export async function recommendBestParking(params: {
       }
 
       const isSpotEmpty = (spot: ParkingSpot): boolean => {
-        if (params.stateMode === "predicted" && predictedSpotStatuses?.[spot.id] != null) {
+        // Snapshot statuses (when provided) are authoritative for scenario-driven recommendations.
+        if (predictedSpotStatuses?.[spot.id] != null) {
           return predictedSpotStatuses[spot.id] === "empty";
         }
         return spot.currentStatus === "empty";
@@ -183,8 +187,7 @@ export async function recommendBestParking(params: {
        * `POST /api/parking-spots/apply-scenario` (deterministic). Random stall choice here would
        * desync the day plan / heat map from the applied campus state after the user switches steps.
        */
-      const snapshotDriven =
-        params.stateMode === "predicted" && predictedSpotStatuses != null;
+      const snapshotDriven = predictedSpotStatuses != null;
       let candidateSpot: ParkingSpot | undefined;
       if (!snapshotDriven && occupancyRatio < 0.30 && emptySpots.length > 1) {
         const quartileCount = Math.max(1, Math.ceil(emptySpots.length * 0.25));
@@ -228,12 +231,12 @@ export async function recommendBestParking(params: {
     return null;
   };
 
-  const strict =
-    params.stateMode === "predicted" && params.predictedFreeSpotsByLotId != null
-      ? await tryPickFromList(rankedPreferForecastHeadroom, true)
-      : null;
-  const loose = strict ?? (await tryPickFromList(eligibleRanked, false));
-  if (loose) return loose;
+  const orderedList =
+    params.predictedFreeSpotsByLotId != null
+      ? rankedPreferForecastHeadroom
+      : eligibleRanked;
+  const picked = await tryPickFromList(orderedList);
+  if (picked) return picked;
 
   // Predicted mode: if every nearby lot looks full in the scenario snapshot (common for large
   // events), try again using the same empty-stall rules as the main loop. Callers without a
@@ -247,8 +250,19 @@ export async function recommendBestParking(params: {
       return spot.currentStatus === "empty";
     };
 
+    const forecastMap = params.predictedFreeSpotsByLotId;
+
     for (const ranked of eligibleRanked) {
       const lotId = ranked.lot.id;
+      const predictedLotFreeSpots = forecastMap?.[lotId];
+      if (
+        forecastMap != null &&
+        predictedLotFreeSpots != null &&
+        predictedLotFreeSpots <= 0
+      ) {
+        continue;
+      }
+
       const allSpots = await spotRepo().find({
         where: { parkingLotId: lotId },
         order: { slotIndex: "ASC", section: "ASC", row: "ASC", index: "ASC" },
@@ -270,7 +284,6 @@ export async function recommendBestParking(params: {
       if (!candidateSpot) continue;
 
       const computedFreeSpots = emptySpots.length;
-      const predictedLotFreeSpots = params.predictedFreeSpotsByLotId?.[lotId];
       const freeSpotsInSelectedLot =
         predictedLotFreeSpots != null ? Math.max(0, predictedLotFreeSpots) : computedFreeSpots;
       const capacity = ranked.lot.capacity;

@@ -157,7 +157,21 @@ export type DayArrivalSegment =
       type: "return_and_park";
       gapAfterPreviousClassMinutes: number;
       targetClass: ArrivalClassSummary;
-    } & ArrivalParkingBlock);
+    } & ArrivalParkingBlock)
+  | {
+      type: "no_parking_available";
+      parkingStep: "initial_arrival" | "return_and_park";
+      targetClass: ArrivalClassSummary;
+      gapAfterPreviousClassMinutes?: number;
+      message: string;
+    };
+
+const NO_PARKING_INITIAL_MESSAGE =
+  "No free stall on any eligible lot near this class for this time in the model. Try arriving earlier if a spot might open, choose a different arrival time, or check campus lots in person.";
+
+/** Long-gap case: we would normally suggest return-to-park; model says no headroom, so steer toward staying. */
+const NO_PARKING_RETURN_GAP_MESSAGE =
+  "Every eligible lot near your next class looks full at arrival time in this model. For a break this long we would usually suggest you could leave campus and return to park; here parking would likely be very scarce or unavailable if you leave, so stay on campus between these classes if you can.";
 
 /** Per-lot prediction data pre-fetched for the "predicted" state mode. */
 type PredictedLotData = Record<string, { freeSpots: number; occupancyPct: number }>;
@@ -550,8 +564,16 @@ export async function getArrivalRecommendationForUser(
     first.course, first.startsAt, walkMpm, minPerFloor, prepBuffer,
     stateMode, parkingEligibility, firstPredicted,
   );
-  if (!firstBlock) return null;
-  segments.push({ type: "initial_arrival", targetClass: firstSummary, ...firstBlock });
+  if (!firstBlock) {
+    segments.push({
+      type: "no_parking_available",
+      parkingStep: "initial_arrival",
+      targetClass: firstSummary,
+      message: NO_PARKING_INITIAL_MESSAGE,
+    });
+  } else {
+    segments.push({ type: "initial_arrival", targetClass: firstSummary, ...firstBlock });
+  }
 
   for (let i = 1; i < classesOnDay.length; i++) {
     const prev = classesOnDay[i - 1]!;
@@ -570,13 +592,22 @@ export async function getArrivalRecommendationForUser(
         curr.course, curr.startsAt, walkMpm, minPerFloor, prepBuffer,
         stateMode, parkingEligibility, currPredicted,
       );
-      if (!block) return null;
-      segments.push({
-        type: "return_and_park",
-        gapAfterPreviousClassMinutes: gapMinutes,
-        targetClass: currSummary,
-        ...block,
-      });
+      if (!block) {
+        segments.push({
+          type: "no_parking_available",
+          parkingStep: "return_and_park",
+          gapAfterPreviousClassMinutes: gapMinutes,
+          targetClass: currSummary,
+          message: NO_PARKING_RETURN_GAP_MESSAGE,
+        });
+      } else {
+        segments.push({
+          type: "return_and_park",
+          gapAfterPreviousClassMinutes: gapMinutes,
+          targetClass: currSummary,
+          ...block,
+        });
+      }
     } else {
       segments.push({
         type: "stay_on_campus",

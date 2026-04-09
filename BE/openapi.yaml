@@ -1070,7 +1070,7 @@ components:
           type: array
           items:
             type: object
-            description: Discriminated union (initial_arrival | stay_on_campus | return_and_park)
+            description: Discriminated union (initial_arrival | stay_on_campus | return_and_park | no_parking_available)
         assumptions:
           type: object
           properties:
