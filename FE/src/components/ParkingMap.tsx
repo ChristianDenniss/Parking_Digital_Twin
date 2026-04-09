@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
 import type { Feature, GeoJsonObject } from "geojson";
@@ -90,6 +90,27 @@ function formatScenarioTimeLabel(hhmm: string): string {
 
 function hasScenarioPicked(date: string, time: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(date.trim()) && /^\d{1,2}:\d{2}$/.test(time.trim());
+}
+
+/** Retries transient tile failures (e.g. net::ERR_CONNECTION_RESET) — Leaflet does not retry by default. */
+const TILE_RETRY_MAX = 3;
+const TILE_RETRY_BASE_MS = 300;
+
+function useTileErrorRetry() {
+  const attemptByTile = useRef(new WeakMap<HTMLImageElement, number>());
+  return useCallback((e: { tile: HTMLImageElement }) => {
+    const tile = e.tile;
+    const prev = attemptByTile.current.get(tile) ?? 0;
+    const next = prev + 1;
+    if (next > TILE_RETRY_MAX) return;
+    attemptByTile.current.set(tile, next);
+    const url = tile.src;
+    if (!url) return;
+    tile.src = "";
+    window.setTimeout(() => {
+      tile.src = url;
+    }, TILE_RETRY_BASE_MS * next);
+  }, []);
 }
 
 function escapeHtml(s: string): string {
@@ -207,6 +228,8 @@ export function ParkingMap({
     [lots, onSectionClick]
   );
 
+  const onTileErrorRetry = useTileErrorRetry();
+
   const onEachBuildingMarker = useCallback((feature: GeoJsonObject, layer: Layer) => {
     const props = (feature as Feature).properties as BuildingMapMarkerFeatureProperties | undefined;
     if (!props) return;
@@ -236,6 +259,7 @@ export function ParkingMap({
           zIndex={0}
           maxNativeZoom={19}
           maxZoom={22}
+          eventHandlers={{ tileerror: onTileErrorRetry }}
         />
         {earthEngineTileUrl && (
           <TileLayer
@@ -243,6 +267,7 @@ export function ParkingMap({
             zIndex={1}
             maxNativeZoom={18}
             maxZoom={22}
+            eventHandlers={{ tileerror: onTileErrorRetry }}
           />
         )}
         {sectionsGeoJSON && (
