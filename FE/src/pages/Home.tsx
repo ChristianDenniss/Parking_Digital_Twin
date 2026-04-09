@@ -105,7 +105,7 @@ export type HomeOutletContextValue = {
   scrollCampusMapIntoView: (behavior?: ScrollBehavior) => void;
 };
 
-const DAY_PLAN_CACHE_PREFIX = "dt_day_plan_v1";
+const DAY_PLAN_CACHE_PREFIX = "dt_day_plan_v2";
 
 /** Match BE `arrivalRecommendation.service` defaults for display-only estimates */
 const REC_WALK_METERS_PER_MINUTE = 80;

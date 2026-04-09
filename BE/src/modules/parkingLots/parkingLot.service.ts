@@ -161,8 +161,8 @@ export async function recommendBestParking(params: {
       const predictedSpotStatuses = params.predictedSpotStatusByLotId?.[lotId];
       const predictedLotFreeSpots = params.predictedFreeSpotsByLotId?.[lotId];
 
+      // If caller provided scenario/forecast free-counts, never pick a lot marked as full there.
       if (
-        params.stateMode === "predicted" &&
         params.predictedFreeSpotsByLotId != null &&
         predictedLotFreeSpots != null &&
         predictedLotFreeSpots <= 0
@@ -171,7 +171,8 @@ export async function recommendBestParking(params: {
       }
 
       const isSpotEmpty = (spot: ParkingSpot): boolean => {
-        if (params.stateMode === "predicted" && predictedSpotStatuses?.[spot.id] != null) {
+        // Snapshot statuses (when provided) are authoritative for scenario-driven recommendations.
+        if (predictedSpotStatuses?.[spot.id] != null) {
           return predictedSpotStatuses[spot.id] === "empty";
         }
         return spot.currentStatus === "empty";
@@ -186,8 +187,7 @@ export async function recommendBestParking(params: {
        * `POST /api/parking-spots/apply-scenario` (deterministic). Random stall choice here would
        * desync the day plan / heat map from the applied campus state after the user switches steps.
        */
-      const snapshotDriven =
-        params.stateMode === "predicted" && predictedSpotStatuses != null;
+      const snapshotDriven = predictedSpotStatuses != null;
       let candidateSpot: ParkingSpot | undefined;
       if (!snapshotDriven && occupancyRatio < 0.30 && emptySpots.length > 1) {
         const quartileCount = Math.max(1, Math.ceil(emptySpots.length * 0.25));
@@ -232,7 +232,7 @@ export async function recommendBestParking(params: {
   };
 
   const orderedList =
-    params.stateMode === "predicted" && params.predictedFreeSpotsByLotId != null
+    params.predictedFreeSpotsByLotId != null
       ? rankedPreferForecastHeadroom
       : eligibleRanked;
   const picked = await tryPickFromList(orderedList);
