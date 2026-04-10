@@ -24,3 +24,16 @@ memory/
 .env.local
 BE/.env
 FE/.env
+
+# Paper authoring/export artifacts
+docs/GanttSchedule.png
+docs/WalkingRoutesDeltas.png
+docs/ParkingDigitalTwin_AcademicPaper.md
+docs/ParkingDigitalTwin_AcademicPaper_PandocDraft.docx
+docs/ParkingDigitalTwin_WordExport.docx
+docs/acm/
+docs/pandoc/
+docs/paper-metadata.yaml
+docs/check-manuscript-sync.ps1
+docs/export-academic-paper.ps1
+docs/scripts/check_abstract_sync.py
