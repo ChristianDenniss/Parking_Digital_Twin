@@ -50,7 +50,7 @@ interface ParkingMapProps {
   scenarioLoading?: boolean;
   /** When set and `scenarioLoading` is true, overrides the default loading line (e.g. day parking plan). */
   scenarioLoadingMessage?: string;
-  /** Live tab after leaving Pick time: show “Nowcasting Scenario…” while apply-live runs */
+  /** Live tab after leaving Pick time: show “Now casting…” while apply-live runs */
   nowcastingLiveApply?: boolean;
   /** Optional overlay (e.g. stats card) rendered on top of the map */
   children?: ReactNode;
@@ -163,15 +163,16 @@ function mapLoadingCopy(
   nowcastingLiveApply: boolean
 ): { text: string; aria: string } {
   if (nowcastingLiveApply) {
-    return { text: "Nowcasting Scenario…", aria: "Nowcasting scenario" };
+    return { text: "Now casting…", aria: "Now casting" };
   }
   if (mapDataMode === "live") {
-    return { text: "Updating map…", aria: "Updating map" };
+    return { text: "Now casting…", aria: "Now casting" };
   }
   const rel = scenarioDateVsToday(scenarioDate);
-  if (rel === "future") return { text: "Forecasting Scenario…", aria: "Forecasting scenario" };
-  if (rel === "past") return { text: "Hindcasting Scenario…", aria: "Hindcasting scenario" };
-  return { text: "Updating map…", aria: "Updating map" };
+  if (rel === "future") return { text: "Forecasting…", aria: "Forecasting" };
+  if (rel === "past") return { text: "Hindcasting…", aria: "Hindcasting" };
+  if (rel === "today") return { text: "Now casting…", aria: "Now casting" };
+  return { text: "Loading map…", aria: "Loading map" };
 }
 
 const liveBadgeClass =
