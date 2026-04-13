@@ -284,7 +284,17 @@ The following limitations are central to **research interpretation**:
 
 A purely **machine-learning** forecaster might achieve lower error given dense labels but sacrifice explainability for facilities managers. A purely **rule-based** system would be transparent but inflexible across semesters. The **hybrid** approach trades off interpretable baselines (curves, calendar) with adaptive residuals-sensible when labels are initially weak. **Agent-based microsimulation** of vehicles could add fidelity at substantial implementation cost; our spot-level simulator is lighter-weight and suitable for interactive demos.
 
-### 6.3 Suggested evaluation protocol (future empirical phase)
+### 6.3 External travel-demand evidence (UNB CTRL)
+
+Recent work from the UNB Community Transportation Research Lab (CTRL) offers **institution-specific** anchors for commuter volume, peaking, and mode share that can inform or later calibrate the twin’s behavioral parameters (carpool and non-driver rates, activity scaling, and scenario narratives).
+
+**Cordon counts (Winter 2023).** CTRL Report 003 reports multiday video cordon counts at UNB Fredericton and Saint John [10]. For **UNB Saint John**, observed average daily traffic was on the order of **4,300 vehicles per day**, with **negligible** bicycle volumes and **low** pedestrian counts at the instrumented gates; morning peaks at the main entrance fell roughly in the **8:30–9:30** window, with a longer afternoon peak. The study compares person-trip mode shares (using an assumed vehicle occupancy from NCHRP Report 716) to an older UNB parking survey and highlights that **ITE trip-generation rates fit Fredericton much better than Saint John**, underscoring that generic university trip-rate tables are a weak prior for UNBSJ-scale campuses.
+
+**Student commuter survey (2024).** CTRL Report 009 summarizes the **2024 UNB commuter survey** (student-focused analysis; draft report dated July 2025) [11]. For **Saint John** students, self-reported **primary** mode to campus was roughly **65% passenger vehicle** (about **53%** drive alone, **12%** rideshare or drop-off), **30% public transit**, and **5%** walk, with longer self-reported commute distances than Fredericton (for example, about **half** of Fredericton students reported **3 km or less**, versus about **17%** at Saint John). Roughly **two thirds** of respondents reported **zero** fully remote days in a typical week, while a minority reported one to two remote days—relevant context for day-of-week demand intensity.
+
+**Interpreting apparent tensions.** The cordon-based person-mode comparison in [10] implied a **very vehicle-dominant** crossing pattern at counted UNBSJ gates, whereas [11] shows **substantial self-reported transit** for Saint John. Those figures are not strictly contradictory: they differ in **population** (all travellers crossing the cordon versus students’ self-reported “longest-distance” mode), **season** (winter cordon counts versus a February 2024 survey), **spatial coverage** (not all access paths or transit alighting may be represented equally), and **measurement** (observed boundary crossings versus survey recall). For the parking twin, the practical implication is to treat **parking demand** as tied to **vehicle arrivals** (where [10] is directly informative) while treating **mode-choice and equity narratives** (transit, walk, distance) as primarily supported by [11], pending joint calibration if loop or camera occupancy data become available.
+
+### 6.4 Suggested evaluation protocol (future empirical phase)
 
 When pilot data become available, a natural protocol would include: (i) stratified hold-out weeks by academic period; (ii) calibration of curve families per lot type; (iii) CRPS or pinball loss for probabilistic extensions; (iv) user-centric metrics such as success rate of finding parking within a time budget under recommendation policy versus baseline choices.
 
@@ -337,3 +347,7 @@ The deployment follows a conventional **web client / REST API / database** split
 [8] B. Metcalfe, H. C. Boshuizen, J. Bulens, and J. J. Koehorst. 2023. Digital twin maturity levels: a theoretical framework for defining capabilities and goals in the life and environmental sciences (Version 1). *F1000Research* 12, 961. DOI: https://doi.org/10.12688/f1000research.137262.1  
 
 [9] N. S. Ozen, M. Farsi, J. A. Erkoyuncu, M. Koyuncu, and C. Gray. 2025. A Machine Learning–Enabled Digital Twin for an Orthopaedic Clinic: A Proof of Concept. *International Journal of Simulation Modelling*. DOI: https://doi.org/10.2507/IJSIMM24-4-747  
+
+[10] H. Debly and T. Hanson. 2024. *Quantifying Travel Demand at the University of New Brunswick Fredericton and Saint John Campuses: Results from a Multiday Cordon Study* (UNB Community Transportation Research Lab Report 003, July 2, 2024). Summary document; full M.Eng. study by H. R. Debly, supervised by T. Hanson.  
+
+[11] D. Higdon and T. Hanson. 2025. *Summary Report: UNB 2024 Student Travel Trends* (UNB Community Transportation Research Lab Report 009, July 2025; draft). Analysis of the 2024 UNB Sustainability Office commuter survey.  

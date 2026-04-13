@@ -234,9 +234,9 @@ add_body(
 add_table(
     ["Parameter", "Value", "Meaning"],
     [
-        ["carpool_rate",          "0.12", "12 % of drivers share a car"],
-        ["non_driver_rate",       "0.35", "35 % walk, cycle, or take the bus"],
-        ["effective_driver_rate", "0.53", "Computed: 1 − non_driver − carpool / 2"],
+        ["carpool_rate",          "0.12", "UNBSJ survey: ~12 % drive with others (CTRL Rpt 009)"],
+        ["non_driver_rate",       "0.35", "UNBSJ survey: ~30 % transit + ~5 % walk (CTRL Rpt 009)"],
+        ["effective_driver_rate", "0.59", "Computed: 1 − non_driver − carpool / 2"],
         ["absence_rate",          "0.15", "15 % daily absenteeism"],
         ["friday_absence_mult",   "1.33", "33 % higher absenteeism on Fridays"],
         ["monday_absence_mult",   "1.13", "13 % higher absenteeism on Mondays"],

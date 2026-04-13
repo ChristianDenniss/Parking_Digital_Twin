@@ -26,9 +26,6 @@ BE/.env
 FE/.env
 
 # Paper authoring/export artifacts
-docs/GanttSchedule.png
-docs/WalkingRoutesDeltas.png
-docs/ParkingDigitalTwin_AcademicPaper.md
 docs/ParkingDigitalTwin_AcademicPaper_PandocDraft.docx
 docs/ParkingDigitalTwin_WordExport.docx
 docs/acm/
