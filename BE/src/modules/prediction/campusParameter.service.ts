@@ -70,6 +70,18 @@ export async function ensureDefaults(): Promise<void> {
   await reconcileEffectiveDriverRate();
 }
 
+/**
+ * Deletes all campus_parameters rows and re-inserts defaults from this module
+ * (same values as a fresh ensureDefaults after an empty table). Use `npm run reset-campus-params`.
+ */
+export async function resetToDefaults(): Promise<void> {
+  await repo().clear();
+  for (const p of DEFAULT_PARAMS) {
+    await repo().save(repo().create(p));
+  }
+  await reconcileEffectiveDriverRate();
+}
+
 export async function getParam(key: string): Promise<number | null> {
   const row = await repo().findOne({ where: { key } });
   return row?.value ?? null;
