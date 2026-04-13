@@ -74,7 +74,13 @@ Used by `BE/scripts/generate-campus-occupancy-from-scrape.mjs` for `nonTeachingS
 | 6:00 PM – 10:00 PM  | 100–250     |
 | 10:00 PM – 12:00 AM | 30–80       |
 
-Estimated **vehicles** from non-teaching staff use `nonTeachingStaffOnCampusMin`/`Max` × **0.58–0.88** in `pplOnCampusByTime.json` (see `parkingVehicleModel` there); combine with student/instructor vehicle fields for total cars per slot.
+### Vehicles per on-campus staff (regional prior)
+
+**UNB CTRL Report 009** tabulates **student** mode share only; faculty/staff are a future cut. For UNBSJ, New Brunswick **Journey to Work** (Statistics Canada, cited in Report 009) shows **~92%** of workers using a car, truck, or van as main mode—much higher transit than students at UNBSJ is still a small share for the general workforce. On-campus presence (§3–§4) already excludes fully remote staff; remaining hybrid workers still skew **auto-oriented**.
+
+Estimated **vehicles** from non-teaching staff: `nonTeachingStaffOnCampusMin`/`Max` × **0.68–0.92** in `pplOnCampusByTime.json` (raised from the older 0.58–0.88 band to reflect NB auto dependence while retaining transit/carpool slack).
+
+**Instructors** (teaching staff in class counts): **0.74–0.94** vehicles per assumed instructor in the scrape pipeline (solo-heavy, aligned with the same regional prior).
 
 ---
 

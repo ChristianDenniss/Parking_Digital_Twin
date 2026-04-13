@@ -28,18 +28,19 @@ const COMMUTER_RATE = 2019 / 2319;
 /**
  * Low / high from StudentData.md §8. commuterShare is always COMMUTER_RATE (§1); only attendance + mode + carpool size vary.
  */
+/** Low/high bracket UNBSJ mode split from UNB CTRL Report 009 (2024 commuter survey) — see BE/data/StudentData.md §3 and §8. */
 const STUDENT_VEHICLE_SCENARIOS = {
   low: {
     attendance: 0.75,
     commuterShare: COMMUTER_RATE,
-    soloRate: 0.75,
-    carpoolRate: 0.05,
+    soloRate: 0.48,
+    carpoolRate: 0.1,
     carpoolSize: 2.5,
   },
   high: {
     attendance: 0.85,
     commuterShare: COMMUTER_RATE,
-    soloRate: 0.85,
+    soloRate: 0.58,
     carpoolRate: 0.15,
     carpoolSize: 2.0,
   },
@@ -60,15 +61,15 @@ function studentVehiclesFromEnrolledInClass(enrolled) {
 
 function instructorVehiclesLowHigh(instructorCount) {
   return {
-    min: Math.round(instructorCount * 0.72),
-    max: Math.round(instructorCount * 0.93),
+    min: Math.round(instructorCount * 0.74),
+    max: Math.round(instructorCount * 0.94),
   };
 }
 
 function staffVehiclesLowHigh(staffMin, staffMax) {
   return {
-    min: Math.round(staffMin * 0.58),
-    max: Math.round(staffMax * 0.88),
+    min: Math.round(staffMin * 0.68),
+    max: Math.round(staffMax * 0.92),
   };
 }
 
@@ -316,9 +317,9 @@ const out = {
     studentMethod:
       "From totalEnrolledInClass: commuters = enrolled × attendance × (2019/2319) always; attendance/solo/carpool/carpool_size use §8 low/high endpoints (StudentData.md).",
     instructorMethod:
-      "assumedInstructors × 0.72–0.93 vehicles (solo-heavy; approximate band).",
+      "assumedInstructors × 0.74–0.94 vehicles (NB auto-oriented workforce prior; StaffData.md).",
     nonTeachingStaffMethod:
-      "nonTeachingStaffOnCampusMin/Max × 0.58–0.88 vehicles (some transit/carpool/not driving).",
+      "nonTeachingStaffOnCampusMin/Max × 0.68–0.92 vehicles (NB journey-to-work prior; StaffData.md).",
     caveats:
       "Same-person double-count possible across classroom vs staff series. totalEnrolledInClass double-counts students in multiple overlapping sections → may overstate cars. Not students on campus outside class (library, etc.).",
   },
